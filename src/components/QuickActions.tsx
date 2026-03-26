@@ -25,7 +25,7 @@ export function QuickActions({ onQuickExpense, onCustom }: QuickActionsProps) {
         className="col-span-3 h-12 rounded-2xl border border-dashed border-indigo-300 bg-indigo-50 text-sm font-semibold text-indigo-700 shadow-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
       >
         <PenSquare className="h-4 w-4" />
-        Custom
+        Своя сумма
       </button>
     </div>
   );

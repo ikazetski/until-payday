@@ -21,35 +21,80 @@ type SettingsSheetProps = {
   onRemoveFixed: (id: string) => void;
 };
 
-function getNextMonthDateRange() {
+function startOfToday() {
   const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
 
-  const toInputValue = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(date.getDate()).padStart(2, "0")}`;
+function toInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getSafeDay(year: number, month: number, day: number) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Math.min(Math.max(day, 1), daysInMonth);
+}
+
+function getSelectableDateRange() {
+  const today = startOfToday();
+  const lastDayOfNextMonth = new Date(
+    today.getFullYear(),
+    today.getMonth() + 2,
+    0
+  );
 
   return {
-    min: toInputValue(firstDay),
-    max: toInputValue(lastDay),
+    min: toInputValue(today),
+    max: toInputValue(lastDayOfNextMonth),
   };
 }
 
 function getDateValueFromSalaryDay(day: number) {
-  const now = new Date();
-  const target = new Date(
-    now.getFullYear(),
-    now.getMonth() + 1,
-    Math.min(Math.max(day, 1), 28)
+  const today = startOfToday();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  const currentMonthCandidate = new Date(
+    year,
+    month,
+    getSafeDay(year, month, day)
   );
 
-  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(target.getDate()).padStart(2, "0")}`;
+  if (currentMonthCandidate >= today) {
+    return toInputValue(currentMonthCandidate);
+  }
+
+  const nextMonthYear = month === 11 ? year + 1 : year;
+  const nextMonth = (month + 1) % 12;
+
+  const nextMonthCandidate = new Date(
+    nextMonthYear,
+    nextMonth,
+    getSafeDay(nextMonthYear, nextMonth, day)
+  );
+
+  return toInputValue(nextMonthCandidate);
+}
+
+function isWithinCurrentOrNextMonth(date: Date) {
+  const today = startOfToday();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+
+  const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
+  const nextMonth = nextMonthDate.getMonth();
+  const nextMonthYear = nextMonthDate.getFullYear();
+
+  const month = date.getMonth();
+  const year = date.getFullYear();
+
+  return (
+    (month === currentMonth && year === currentYear) ||
+    (month === nextMonth && year === nextMonthYear)
+  );
 }
 
 export function SettingsSheet({
@@ -71,7 +116,7 @@ export function SettingsSheet({
   const [fixedAmount, setFixedAmount] = useState("");
   const [editingFixedId, setEditingFixedId] = useState<string | null>(null);
 
-  const dateRange = getNextMonthDateRange();
+  const dateRange = getSelectableDateRange();
 
   useEffect(() => {
     if (open) {
@@ -87,12 +132,15 @@ export function SettingsSheet({
 
   const handleSaveSettings = () => {
     const parsedBudget = Number(budgetValue);
-    const date = new Date(salaryDateValue);
+    const selectedDate = new Date(salaryDateValue);
+    const today = startOfToday();
 
     if (!Number.isFinite(parsedBudget) || parsedBudget < 0) return;
-    if (Number.isNaN(date.getTime())) return;
+    if (Number.isNaN(selectedDate.getTime())) return;
+    if (selectedDate < today) return;
+    if (!isWithinCurrentOrNextMonth(selectedDate)) return;
 
-    onUpdateSettings(parsedBudget, date.getDate());
+    onUpdateSettings(parsedBudget, selectedDate.getDate());
     onClose();
   };
 
@@ -167,11 +215,10 @@ export function SettingsSheet({
             min={dateRange.min}
             max={dateRange.max}
             onChange={(e) => setSalaryDateValue(e.target.value)}
-            className="block w-full min-w-0 max-w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none"
-            style={{ minWidth: 0 }}
+            className="date-input-fix block w-full min-w-0 max-w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[14px] outline-none"
           />
           <span className="mt-1 block text-xs text-gray-500">
-            Можно выбрать только дату следующей зарплаты в следующем месяце.
+            Можно выбрать дату только в текущем или следующем месяце.
           </span>
         </label>
 

@@ -49,6 +49,7 @@ type PersistedData = {
   salaryDay: number;
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
+  trackingStartedAt: string;
 };
 
 function roundMoney(value: number) {
@@ -63,6 +64,13 @@ function startOfToday() {
 
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function toDayKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function daysBetween(start: Date, end: Date) {
@@ -145,12 +153,11 @@ function isExpenseInCurrentCycle(
   previousSalaryDate: Date,
   nextSalaryDate: Date
 ) {
-  const expenseDate = new Date(expense.createdAt);
-  const expenseTime = expenseDate.getTime();
+  const expenseDate = new Date(expense.createdAt).getTime();
 
   return (
-    expenseTime >= startOfDay(previousSalaryDate).getTime() &&
-    expenseTime < startOfDay(nextSalaryDate).getTime()
+    expenseDate >= startOfDay(previousSalaryDate).getTime() &&
+    expenseDate < startOfDay(nextSalaryDate).getTime()
   );
 }
 
@@ -160,8 +167,11 @@ function calculateDerived(data: PersistedData) {
   const previousSalaryDate = getPreviousSalaryDate(data.salaryDay);
   const daysLeft = getDaysLeft(nextSalaryDate);
 
-  const cycleDays = Math.max(1, daysBetween(previousSalaryDate, nextSalaryDate));
-  const elapsedDays = Math.min(cycleDays, daysBetween(previousSalaryDate, today));
+  const trackingStartedAtDate = startOfDay(new Date(data.trackingStartedAt));
+  const effectiveTrackingStart =
+    trackingStartedAtDate > previousSalaryDate
+      ? trackingStartedAtDate
+      : previousSalaryDate;
 
   const cycleExpenses = data.recentExpenses.filter((expense) =>
     isExpenseInCurrentCycle(expense, previousSalaryDate, nextSalaryDate)
@@ -169,19 +179,58 @@ function calculateDerived(data: PersistedData) {
 
   const totalSpentCore = cycleExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const fixedTotal = data.fixedExpenses.reduce((sum, item) => sum + item.amount, 0);
-
   const remaining = data.monthlyBudget - totalSpentCore;
-  const dailyBudget = daysLeft > 0 ? remaining / daysLeft : remaining;
+
+  const expensesByDay = new Map<string, number>();
+
+  for (const expense of cycleExpenses) {
+    const key = toDayKey(new Date(expense.createdAt));
+    expensesByDay.set(key, roundMoney((expensesByDay.get(key) ?? 0) + expense.amount));
+  }
 
   const spentToday = cycleExpenses
     .filter((expense) => isSameDay(expense.createdAt, today))
     .reduce((sum, expense) => sum + expense.amount, 0);
 
-  const idealSpentByNow =
-    cycleDays > 0 ? (data.monthlyBudget / cycleDays) * elapsedDays : 0;
+  let budgetAtStartOfDay = data.monthlyBudget;
+  let currentCursor = startOfDay(previousSalaryDate);
 
-  const savings = idealSpentByNow - totalSpentCore;
-  const todayRemaining = dailyBudget - spentToday;
+  while (currentCursor < effectiveTrackingStart) {
+    const dayKey = toDayKey(currentCursor);
+    const spentThisDay = expensesByDay.get(dayKey) ?? 0;
+    budgetAtStartOfDay -= spentThisDay;
+    currentCursor = new Date(currentCursor.getTime() + DAY_MS);
+  }
+
+  let carryoverFromPastDays = 0;
+  let todayBudget = 0;
+
+  while (currentCursor <= today && currentCursor < nextSalaryDate) {
+    const dayKey = toDayKey(currentCursor);
+    const spentThisDay = expensesByDay.get(dayKey) ?? 0;
+    const isToday = toDayKey(currentCursor) === toDayKey(today);
+
+    const daysRemainingIncludingThisDay = Math.max(
+      1,
+      daysBetween(currentCursor, nextSalaryDate)
+    );
+
+    const plannedForThisDay = budgetAtStartOfDay / daysRemainingIncludingThisDay;
+
+    if (isToday) {
+      todayBudget = plannedForThisDay;
+    } else {
+      carryoverFromPastDays += plannedForThisDay - spentThisDay;
+    }
+
+    budgetAtStartOfDay -= spentThisDay;
+    currentCursor = new Date(currentCursor.getTime() + DAY_MS);
+  }
+
+  const todayRemaining = todayBudget - spentToday;
+
+  const savings =
+    carryoverFromPastDays + (todayRemaining < 0 ? todayRemaining : 0);
 
   let status: Status = "green";
 
@@ -194,7 +243,7 @@ function calculateDerived(data: PersistedData) {
   return {
     remaining: roundMoney(remaining),
     daysLeft,
-    dailyBudget: roundMoney(dailyBudget),
+    dailyBudget: roundMoney(todayBudget),
     spentToday: roundMoney(spentToday),
     savings: roundMoney(savings),
     fixedTotal: roundMoney(fixedTotal),
@@ -210,6 +259,7 @@ function loadInitialData(): PersistedData {
     salaryDay: 25,
     fixedExpenses: [],
     recentExpenses: [],
+    trackingStartedAt: startOfToday().toISOString(),
   };
 
   if (typeof window === "undefined") return fallback;
@@ -235,6 +285,10 @@ function loadInitialData(): PersistedData {
       recentExpenses: Array.isArray(parsed.recentExpenses)
         ? parsed.recentExpenses
         : fallback.recentExpenses,
+      trackingStartedAt:
+        typeof parsed.trackingStartedAt === "string"
+          ? parsed.trackingStartedAt
+          : fallback.trackingStartedAt,
     };
   } catch {
     return fallback;
@@ -270,6 +324,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         },
         ...current.recentExpenses,
       ],
+      trackingStartedAt:
+        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
+          ? current.trackingStartedAt
+          : startOfToday().toISOString(),
     };
 
     saveData(updatedData);
@@ -287,6 +345,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay: current.salaryDay,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses.filter((item) => item.id !== id),
+      trackingStartedAt:
+        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
+          ? current.trackingStartedAt
+          : startOfToday().toISOString(),
     };
 
     saveData(updatedData);
@@ -311,6 +373,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         },
       ],
       recentExpenses: current.recentExpenses,
+      trackingStartedAt:
+        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
+          ? current.trackingStartedAt
+          : startOfToday().toISOString(),
     };
 
     saveData(updatedData);
@@ -336,6 +402,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
           : item
       ),
       recentExpenses: current.recentExpenses,
+      trackingStartedAt:
+        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
+          ? current.trackingStartedAt
+          : startOfToday().toISOString(),
     };
 
     saveData(updatedData);
@@ -353,6 +423,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay: current.salaryDay,
       fixedExpenses: current.fixedExpenses.filter((item) => item.id !== id),
       recentExpenses: current.recentExpenses,
+      trackingStartedAt:
+        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
+          ? current.trackingStartedAt
+          : startOfToday().toISOString(),
     };
 
     saveData(updatedData);
@@ -370,6 +444,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
+      trackingStartedAt: startOfToday().toISOString(),
     };
 
     saveData(updatedData);
@@ -387,6 +462,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay: current.salaryDay,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
+      trackingStartedAt:
+        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
+          ? current.trackingStartedAt
+          : startOfToday().toISOString(),
     };
 
     set({
