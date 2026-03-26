@@ -23,7 +23,6 @@ type FinanceStore = {
   salaryDay: number;
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
-
   remaining: number;
   daysLeft: number;
   dailyBudget: number;
@@ -33,7 +32,6 @@ type FinanceStore = {
   totalSpentCore: number;
   nextSalaryDate: Date;
   status: Status;
-
   addExpense: (amount: number, category: ExpenseCategory, note?: string) => void;
   removeExpense: (id: string) => void;
   addFixedExpense: (name: string, amount: number) => void;
@@ -63,10 +61,18 @@ function startOfToday() {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 function daysBetween(start: Date, end: Date) {
-  const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-  return Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / DAY_MS));
+  const startDate = startOfDay(start);
+  const endDate = startOfDay(end);
+
+  return Math.max(
+    0,
+    Math.round((endDate.getTime() - startDate.getTime()) / DAY_MS)
+  );
 }
 
 function getSafeDay(year: number, month: number, salaryDay: number) {
@@ -120,11 +126,13 @@ function getDaysLeft(nextSalaryDate: Date) {
   const today = startOfToday();
   const diffMs = nextSalaryDate.getTime() - today.getTime();
   const days = Math.ceil(diffMs / DAY_MS);
+
   return Math.max(days, 1);
 }
 
 function isSameDay(dateString: string, compareDate: Date) {
   const date = new Date(dateString);
+
   return (
     date.getFullYear() === compareDate.getFullYear() &&
     date.getMonth() === compareDate.getMonth() &&
@@ -132,32 +140,54 @@ function isSameDay(dateString: string, compareDate: Date) {
   );
 }
 
+function isExpenseInCurrentCycle(
+  expense: Expense,
+  previousSalaryDate: Date,
+  nextSalaryDate: Date
+) {
+  const expenseDate = new Date(expense.createdAt);
+  const expenseTime = expenseDate.getTime();
+
+  return (
+    expenseTime >= startOfDay(previousSalaryDate).getTime() &&
+    expenseTime < startOfDay(nextSalaryDate).getTime()
+  );
+}
+
 function calculateDerived(data: PersistedData) {
   const today = startOfToday();
   const nextSalaryDate = getNextSalaryDate(data.salaryDay);
   const previousSalaryDate = getPreviousSalaryDate(data.salaryDay);
-
   const daysLeft = getDaysLeft(nextSalaryDate);
+
   const cycleDays = Math.max(1, daysBetween(previousSalaryDate, nextSalaryDate));
   const elapsedDays = Math.min(cycleDays, daysBetween(previousSalaryDate, today));
 
-  const totalSpentCore = data.recentExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const cycleExpenses = data.recentExpenses.filter((expense) =>
+    isExpenseInCurrentCycle(expense, previousSalaryDate, nextSalaryDate)
+  );
+
+  const totalSpentCore = cycleExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const fixedTotal = data.fixedExpenses.reduce((sum, item) => sum + item.amount, 0);
+
   const remaining = data.monthlyBudget - totalSpentCore;
   const dailyBudget = daysLeft > 0 ? remaining / daysLeft : remaining;
 
-  const spentToday = data.recentExpenses
+  const spentToday = cycleExpenses
     .filter((expense) => isSameDay(expense.createdAt, today))
     .reduce((sum, expense) => sum + expense.amount, 0);
 
-  const idealSpentByNow = (data.monthlyBudget / cycleDays) * elapsedDays;
+  const idealSpentByNow =
+    cycleDays > 0 ? (data.monthlyBudget / cycleDays) * elapsedDays : 0;
+
   const savings = idealSpentByNow - totalSpentCore;
   const todayRemaining = dailyBudget - spentToday;
 
   let status: Status = "green";
-  if (todayRemaining < 0 || savings < -0.01) {
+
+  if (remaining < -0.01) {
     status = "red";
-  } else if (todayRemaining <= dailyBudget * 0.15 || savings < 10) {
+  } else if (todayRemaining < -0.01 || savings < -0.01) {
     status = "yellow";
   }
 
@@ -176,7 +206,7 @@ function calculateDerived(data: PersistedData) {
 
 function loadInitialData(): PersistedData {
   const fallback: PersistedData = {
-    monthlyBudget: 1000,
+    monthlyBudget: 0,
     salaryDay: 25,
     fixedExpenses: [],
     recentExpenses: [],
@@ -189,13 +219,16 @@ function loadInitialData(): PersistedData {
 
   try {
     const parsed = JSON.parse(raw) as Partial<PersistedData>;
+
     return {
       monthlyBudget:
         typeof parsed.monthlyBudget === "number"
           ? parsed.monthlyBudget
           : fallback.monthlyBudget,
       salaryDay:
-        typeof parsed.salaryDay === "number" ? parsed.salaryDay : fallback.salaryDay,
+        typeof parsed.salaryDay === "number"
+          ? parsed.salaryDay
+          : fallback.salaryDay,
       fixedExpenses: Array.isArray(parsed.fixedExpenses)
         ? parsed.fixedExpenses
         : fallback.fixedExpenses,
@@ -240,7 +273,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     };
 
     saveData(updatedData);
-
     set({
       ...updatedData,
       ...calculateDerived(updatedData),
@@ -258,7 +290,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     };
 
     saveData(updatedData);
-
     set({
       ...updatedData,
       ...calculateDerived(updatedData),
@@ -283,7 +314,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     };
 
     saveData(updatedData);
-
     set({
       ...updatedData,
       ...calculateDerived(updatedData),
@@ -309,7 +339,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     };
 
     saveData(updatedData);
-
     set({
       ...updatedData,
       ...calculateDerived(updatedData),
@@ -327,7 +356,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     };
 
     saveData(updatedData);
-
     set({
       ...updatedData,
       ...calculateDerived(updatedData),
@@ -345,7 +373,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     };
 
     saveData(updatedData);
-
     set({
       ...updatedData,
       ...calculateDerived(updatedData),

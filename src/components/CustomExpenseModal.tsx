@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BottomSheet } from "@/components/BottomSheet";
 
 type CustomExpenseModalProps = {
   open: boolean;
@@ -19,8 +20,6 @@ export function CustomExpenseModal({
     }
   }, [open]);
 
-  if (!open) return null;
-
   const handleSubmit = () => {
     const parsedAmount = Number(amount);
 
@@ -31,40 +30,41 @@ export function CustomExpenseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-t-3xl bg-white px-5 pt-5 pb-8 shadow-2xl">
-        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-300" />
-
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Custom расход</h2>
-          <button
-            onClick={onClose}
-            className="rounded-xl px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100"
-          >
-            Закрыть
-          </button>
-        </div>
-
-        <label className="block mb-4">
-          <span className="block text-sm text-gray-600 mb-1">Сумма</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Введите сумму"
-            className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none"
-          />
-        </label>
-
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      panelClassName="pb-8"
+      contentClassName="px-5"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-bold text-gray-900">Custom расход</h2>
         <button
-          onClick={handleSubmit}
-          className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm"
+          onClick={onClose}
+          className="rounded-xl px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100"
         >
-          Добавить
+          Закрыть
         </button>
       </div>
-    </div>
+
+      <label className="mb-4 block">
+        <span className="mb-1 block text-sm text-gray-600">Сумма</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Введите сумму"
+          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none"
+        />
+      </label>
+
+      <button
+        onClick={handleSubmit}
+        className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm"
+      >
+        Добавить
+      </button>
+    </BottomSheet>
   );
 }

@@ -15,7 +15,7 @@ const statusConfig = {
     activeIndex: 0,
   },
   yellow: {
-    title: "Почти у лимита",
+    title: "Есть риск выйти за план",
     textColor: "text-amber-700",
     activeTrack: "bg-amber-500",
     activeIndex: 1,
@@ -28,7 +28,10 @@ const statusConfig = {
   },
 } as const;
 
-export function StatusIndicator({ status, savings = 0 }: StatusIndicatorProps) {
+export function StatusIndicator({
+  status,
+  savings = 0,
+}: StatusIndicatorProps) {
   const config = statusConfig[status];
 
   return (
