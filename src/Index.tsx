@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Settings, Plus, Wallet, CalendarDays } from "lucide-react";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
+
 import { cn, formatMoney } from "@/lib/utils";
 import { useFinanceStore } from "@/hooks/useFinanceStore";
 import { StatusIndicator } from "@/components/StatusIndicator";
@@ -10,22 +13,22 @@ import { SettingsSheet } from "@/components/SettingsSheet";
 import { RecentTransactions } from "@/components/RecentTransactions";
 import { BottomNav } from "@/components/BottomNav";
 import { HistoryScreen } from "@/components/HistoryScreen";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
 
 const Index = () => {
   const store = useFinanceStore();
+
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [customExpenseModalOpen, setCustomExpenseModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "history">("home");
-  const [undoExpense, setUndoExpense] = useState<{ id: string; amount: number } | null>(null);
-  const undoTimerRef = useRef<number | null>(null);
+  const [activeCard, setActiveCard] = useState<0 | 1>(0);
+  const [undoExpense, setUndoExpense] = useState<{
+    id: string;
+    amount: number;
+  } | null>(null);
 
-  const isOverBudget = store.remaining < 0;
-  const isWarning = store.status === "red" || isOverBudget;
-  const todayRemaining = store.dailyBudget - store.spentToday;
-  const isNegativeToday = todayRemaining < 0;
+  const undoTimerRef = useRef<number | null>(null);
+  const carouselRef = useRef<HTMLDivElement | null>(null);
 
   const clearUndoTimer = () => {
     if (undoTimerRef.current) {
@@ -39,6 +42,7 @@ const Index = () => {
     if (!latest) return;
 
     setUndoExpense({ id: latest.id, amount: latest.amount });
+
     clearUndoTimer();
 
     undoTimerRef.current = window.setTimeout(() => {
@@ -47,13 +51,17 @@ const Index = () => {
     }, 5000);
   };
 
-  const handleExpenseAdd = (amount: number, category: "food" | "other", note?: string) => {
-    store.addExpense(amount, category, note);
+  const handleExpenseAdd = (
+    amount: number,
+    category: "food" | "sport" | "fuel" | "entertainment" | "other"
+  ) => {
+    store.addExpense(amount, category);
     showUndoForLastExpense();
   };
 
   const handleUndoExpense = () => {
     if (!undoExpense) return;
+
     store.removeExpense(undoExpense.id);
     setUndoExpense(null);
     clearUndoTimer();
@@ -86,6 +94,79 @@ const Index = () => {
     };
   }, []);
 
+  const cycleExpenses = useMemo(() => {
+    const nextSalaryDate = store.nextSalaryDate;
+    const previousSalaryDate = new Date(
+      nextSalaryDate.getFullYear(),
+      nextSalaryDate.getMonth(),
+      nextSalaryDate.getDate()
+    );
+    previousSalaryDate.setMonth(previousSalaryDate.getMonth() - 1);
+
+    return store.recentExpenses.filter((expense) => {
+      const expenseDate = new Date(expense.createdAt).getTime();
+      return (
+        expenseDate >= new Date(store.trackingStartedAt).getTime() &&
+        expenseDate < nextSalaryDate.getTime()
+      );
+    });
+  }, [store.recentExpenses, store.nextSalaryDate, store.trackingStartedAt]);
+
+  const weekExpenses = useMemo(() => {
+    const weekStart = store.currentWeekStart.getTime();
+    const weekEnd = new Date(
+      store.currentWeekEnd.getFullYear(),
+      store.currentWeekEnd.getMonth(),
+      store.currentWeekEnd.getDate() + 1
+    ).getTime();
+
+    return store.recentExpenses.filter((expense) => {
+      const expenseTime = new Date(expense.createdAt).getTime();
+      return expenseTime >= weekStart && expenseTime < weekEnd;
+    });
+  }, [store.recentExpenses, store.currentWeekStart, store.currentWeekEnd]);
+
+  const currentPeriodExpenses = activeCard === 0 ? weekExpenses : cycleExpenses;
+  const currentPeriodTitle =
+    activeCard === 0
+      ? `${format(store.currentWeekStart, "d MMM", { locale: ru })} – ${format(
+          store.currentWeekEnd,
+          "d MMM",
+          { locale: ru }
+        )}`
+      : `До ${format(store.nextSalaryDate, "d MMMM", { locale: ru })}`;
+
+  const goToCard = (index: 0 | 1) => {
+    setActiveCard(index);
+
+    if (!carouselRef.current) return;
+
+    const width = carouselRef.current.clientWidth;
+    carouselRef.current.scrollTo({
+      left: width * index,
+      behavior: "smooth",
+    });
+  };
+
+  const handleCarouselScroll = () => {
+    if (!carouselRef.current) return;
+
+    const width = carouselRef.current.clientWidth;
+    const left = carouselRef.current.scrollLeft;
+
+    if (left < width / 2) {
+      setActiveCard(0);
+    } else {
+      setActiveCard(1);
+    }
+  };
+
+  const isMonthlyOverBudget = store.remaining < 0;
+  const monthTodayRemaining = store.dailyBudget - store.spentToday;
+
+  const isWeeklyOverBudget = store.weeklyRemaining < 0;
+  const weekTodayRemaining = monthTodayRemaining;
+
   if (activeTab === "history") {
     return (
       <>
@@ -100,128 +181,278 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background px-5 pt-safe pb-24 max-w-md mx-auto">
-      <div className="flex items-center justify-between pt-10 mb-6">
+      <div className="mb-6 flex items-center justify-between pt-10">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
-            <Wallet className="w-5 h-5 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600">
+            <Wallet className="h-5 w-5 text-white" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight !m-0">До зарплаты</h1>
+          <h1 className="!m-0 text-xl font-bold tracking-tight">До зарплаты</h1>
         </div>
 
         <button
           onClick={() => setSettingsOpen(true)}
-          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-muted-foreground transition-colors hover:text-foreground"
         >
-          <Settings className="w-[18px] h-[18px]" />
+          <Settings className="h-[18px] w-[18px]" />
         </button>
       </div>
 
-      <StatusIndicator status={store.status} savings={store.savings} />
+      <div
+        ref={carouselRef}
+        onScroll={handleCarouselScroll}
+        className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <div className="min-w-full snap-start">
+          <StatusIndicator status={store.weeklyStatus} savings={store.weeklySavings} />
 
-      <div className={cn("kpi-card mt-5", isWarning && "kpi-card-warning")}>
-        <p className="text-sm font-medium text-white/70 mb-1">Осталось</p>
-        <p className="text-[3.2rem] font-extrabold tracking-tighter text-white leading-none">
-          {formatMoney(store.remaining)}
-        </p>
-        <p className="text-sm font-medium text-white/50 mt-1">BYN</p>
-
-        <div className="flex items-center gap-1.5 mt-3">
-          <CalendarDays className="w-3.5 h-3.5 text-white/40" />
-          <p className="text-xs text-white/40">
-            Зарплата {format(store.nextSalaryDate, "d MMMM", { locale: ru })}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-white/15">
-          <div>
-            <p className="text-xs font-medium text-white/50">Дней</p>
-            <p className="text-2xl font-bold text-white">{store.daysLeft}</p>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-white/50">
-              {isNegativeToday ? "Перерасход" : "На сегодня"}
-            </p>
-            <p
-              className={cn(
-                "text-2xl font-bold",
-                isNegativeToday ? "text-red-300" : "text-white"
-              )}
-            >
-              {isNegativeToday ? "" : "+"}
-              {formatMoney(todayRemaining)}
-            </p>
-            <p className="text-[10px] text-white/35 mt-0.5">
-              потрачено {formatMoney(store.spentToday)} · лимит {formatMoney(store.dailyBudget)}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-white/50">Отклонение</p>
-            <p
-              className={cn(
-                "text-2xl font-bold",
-                store.savings >= 0 ? "text-emerald-300" : "text-red-300"
-              )}
-            >
-              {store.savings > 0 ? "+" : ""}
-              {formatMoney(store.savings)}
-            </p>
-            <p className="text-[10px] text-white/35 mt-0.5">от плана</p>
-          </div>
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
-          <span className="text-xs text-white/40">Потрачено сегодня</span>
-          <span
+          <div
             className={cn(
-              "text-sm font-semibold",
-              store.spentToday > store.dailyBudget ? "text-red-300" : "text-white/70"
+              "kpi-card mt-5",
+              isWeeklyOverBudget && "kpi-card-warning"
             )}
           >
-            −{formatMoney(store.spentToday)} BYN
-          </span>
+            <p className="mb-1 text-sm font-medium text-white/70">Можно потратить</p>
+
+            <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
+              {formatMoney(store.weeklyRemaining)}
+            </p>
+
+            <p className="mt-1 text-sm font-medium text-white/50">BYN</p>
+
+            <div className="mt-3 flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5 text-white/40" />
+              <p className="text-xs text-white/40">
+                Неделя {format(store.currentWeekStart, "d MMM", { locale: ru })} –{" "}
+                {format(store.currentWeekEnd, "d MMM", { locale: ru })}
+              </p>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/15 pt-5">
+              <div>
+                <p className="text-xs font-medium text-white/50">Лимит недели</p>
+                <p className="text-2xl font-bold text-white">
+                  {formatMoney(store.weeklyBudget)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-white/50">
+                  {weekTodayRemaining < 0 ? "Перерасход" : "На сегодня"}
+                </p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold",
+                    weekTodayRemaining < 0 ? "text-red-300" : "text-white"
+                  )}
+                >
+                  {weekTodayRemaining < 0 ? "" : "+"}
+                  {formatMoney(weekTodayRemaining)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-white/50">Отклонение</p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold",
+                    store.weeklySavings >= 0 ? "text-emerald-300" : "text-red-300"
+                  )}
+                >
+                  {store.weeklySavings > 0 ? "+" : ""}
+                  {formatMoney(store.weeklySavings)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-white/50">
+                  Потрачено сегодня
+                </p>
+                <p className="text-2xl font-bold text-white">
+                  {formatMoney(store.spentToday)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-white/10 pt-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs text-white/40">Прогресс недели</span>
+                <span className="text-sm font-semibold text-white/70">
+                  {formatMoney(store.weeklySpent)} / {formatMoney(store.weeklyBudget)}
+                </span>
+              </div>
+
+              <div className="h-2 overflow-hidden rounded-full bg-white/15">
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    isWeeklyOverBudget ? "bg-red-300" : "bg-white"
+                  )}
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      store.weeklyBudget > 0
+                        ? (store.weeklySpent / store.weeklyBudget) * 100
+                        : 0
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="min-w-full snap-start">
+          <StatusIndicator status={store.status} savings={store.savings} />
+
+          <div
+            className={cn(
+              "kpi-card mt-5",
+              isMonthlyOverBudget && "kpi-card-warning"
+            )}
+          >
+            <p className="mb-1 text-sm font-medium text-white/70">Осталось</p>
+
+            <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
+              {formatMoney(store.remaining)}
+            </p>
+
+            <p className="mt-1 text-sm font-medium text-white/50">BYN</p>
+
+            <div className="mt-3 flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5 text-white/40" />
+              <p className="text-xs text-white/40">
+                Зарплата {format(store.nextSalaryDate, "d MMMM", { locale: ru })}
+              </p>
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5">
+              <div>
+                <p className="text-xs font-medium text-white/50">Дней</p>
+                <p className="text-2xl font-bold text-white">{store.daysLeft}</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-white/50">
+                  {monthTodayRemaining < 0 ? "Перерасход" : "На сегодня"}
+                </p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold",
+                    monthTodayRemaining < 0 ? "text-red-300" : "text-white"
+                  )}
+                >
+                  {monthTodayRemaining < 0 ? "" : "+"}
+                  {formatMoney(monthTodayRemaining)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-white/35">
+                  потрачено {formatMoney(store.spentToday)} · лимит{" "}
+                  {formatMoney(store.dailyBudget)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-white/50">Отклонение</p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold",
+                    store.savings >= 0 ? "text-emerald-300" : "text-red-300"
+                  )}
+                >
+                  {store.savings > 0 ? "+" : ""}
+                  {formatMoney(store.savings)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-white/35">от плана</p>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-white/10 pt-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs text-white/40">Прогресс периода</span>
+                <span className="text-sm font-semibold text-white/70">
+                  {formatMoney(store.totalSpentCore)} / {formatMoney(store.monthlyBudget)}
+                </span>
+              </div>
+
+              <div className="h-2 overflow-hidden rounded-full bg-white/15">
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    isMonthlyOverBudget ? "bg-red-300" : "bg-white"
+                  )}
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      store.monthlyBudget > 0
+                        ? (store.totalSpentCore / store.monthlyBudget) * 100
+                        : 0
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
+      <div className="mt-3 flex items-center justify-center gap-2">
+        {[0, 1].map((index) => (
+          <button
+            key={index}
+            onClick={() => goToCard(index as 0 | 1)}
+            className={cn(
+              "h-2.5 w-2.5 rounded-full transition-all",
+              activeCard === index ? "bg-gray-900" : "bg-gray-300"
+            )}
+            aria-label={index === 0 ? "Карточка недели" : "Карточка периода"}
+          />
+        ))}
+      </div>
+
       <div className="mt-5">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Быстрый расход
         </p>
+
         <QuickActions
-          onQuickExpense={(amt) => handleExpenseAdd(amt, "other")}
+          onQuickExpense={(amount) => handleExpenseAdd(amount, "other")}
           onCustom={() => setCustomExpenseModalOpen(true)}
         />
       </div>
 
       <button
         onClick={() => setExpenseModalOpen(true)}
-        className="w-full h-[52px] mt-3 text-[15px] font-semibold rounded-2xl gap-2 flex items-center justify-center bg-indigo-600 text-white shadow-[0_4px_16px_-4px_rgba(80,60,200,0.4)] active:scale-[0.98] transition-transform"
+        className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 text-[15px] font-semibold text-white shadow-[0_4px_16px_-4px_rgba(80,60,200,0.4)] transition-transform active:scale-[0.98]"
       >
-        <Plus className="w-5 h-5" />
+        <Plus className="h-5 w-5" />
         Добавить расход
       </button>
 
       <div className="finance-card mt-5">
-        <div className="flex justify-between items-center">
+        <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Фикс. расходы</span>
-          <span className="font-semibold text-sm">{formatMoney(store.fixedTotal)} BYN</span>
+          <span className="text-sm font-semibold">
+            {formatMoney(store.fixedTotal)} BYN
+          </span>
         </div>
 
-        <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
+        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
           <span className="text-sm text-muted-foreground">Всего потрачено</span>
-          <span className="font-semibold text-sm">
+          <span className="text-sm font-semibold">
             {formatMoney(store.totalSpentCore + store.fixedTotal)} BYN
           </span>
         </div>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          Фиксированные расходы не уменьшают дневной лимит, но показываются в общем итоге.
+          Фиксированные расходы не уменьшают дневной лимит, но показываются в
+          общем итоге.
         </p>
       </div>
 
       <div className="mt-5">
-        <RecentTransactions expenses={store.recentExpenses} />
+        <RecentTransactions
+          expenses={currentPeriodExpenses}
+          periodTitle={currentPeriodTitle}
+        />
       </div>
 
       <AddExpenseModal
@@ -254,6 +485,7 @@ const Index = () => {
             <span className="text-sm">
               Расход {formatMoney(undoExpense.amount)} BYN добавлен
             </span>
+
             <button
               onClick={handleUndoExpense}
               className="shrink-0 rounded-xl bg-white/10 px-3 py-1.5 text-sm font-semibold text-white"

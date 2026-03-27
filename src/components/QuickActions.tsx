@@ -5,7 +5,7 @@ type QuickActionsProps = {
   onCustom: () => void;
 };
 
-const amounts = [1, 5, 10, 20, 50, 100];
+const amounts = [5, 20, 50];
 
 export function QuickActions({ onQuickExpense, onCustom }: QuickActionsProps) {
   return (
@@ -14,7 +14,7 @@ export function QuickActions({ onQuickExpense, onCustom }: QuickActionsProps) {
         <button
           key={amount}
           onClick={() => onQuickExpense(amount)}
-          className="h-12 rounded-2xl bg-white border border-gray-200 text-sm font-semibold text-gray-900 shadow-sm active:scale-[0.98] transition-transform"
+          className="h-12 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-900 shadow-sm active:scale-[0.98] transition-transform"
         >
           -{amount}
         </button>
@@ -22,7 +22,7 @@ export function QuickActions({ onQuickExpense, onCustom }: QuickActionsProps) {
 
       <button
         onClick={onCustom}
-        className="col-span-3 h-12 rounded-2xl border border-dashed border-indigo-300 bg-indigo-50 text-sm font-semibold text-indigo-700 shadow-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+        className="col-span-3 flex h-12 items-center justify-center gap-2 rounded-2xl border border-dashed border-indigo-300 bg-indigo-50 text-sm font-semibold text-indigo-700 shadow-sm active:scale-[0.98] transition-transform"
       >
         <PenSquare className="h-4 w-4" />
         Своя сумма

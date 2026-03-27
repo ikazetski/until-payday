@@ -37,7 +37,7 @@ export function CustomExpenseModal({
       contentClassName="px-5"
     >
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-900">Custom расход</h2>
+        <h2 className="text-lg font-bold text-gray-900">Своя сумма</h2>
         <button
           onClick={onClose}
           className="rounded-xl px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100"
@@ -56,6 +56,7 @@ export function CustomExpenseModal({
           onChange={(e) => setAmount(e.target.value)}
           placeholder="Введите сумму"
           className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none"
+          autoFocus
         />
       </label>
 

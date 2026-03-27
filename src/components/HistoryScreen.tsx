@@ -1,12 +1,5 @@
 import { formatMoney } from "@/lib/utils";
-
-type Expense = {
-  id: string;
-  amount: number;
-  category: "food" | "other";
-  note?: string;
-  createdAt: string;
-};
+import type { Expense } from "@/hooks/useFinanceStore";
 
 type HistoryScreenProps = {
   expenses: Expense[];

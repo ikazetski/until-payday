@@ -1,8 +1,13 @@
 import { create } from "zustand";
 
-type ExpenseCategory = "food" | "other";
+export type ExpenseCategory =
+  | "food"
+  | "sport"
+  | "fuel"
+  | "entertainment"
+  | "other";
 
-type Expense = {
+export type Expense = {
   id: string;
   amount: number;
   category: ExpenseCategory;
@@ -10,7 +15,7 @@ type Expense = {
   createdAt: string;
 };
 
-type FixedExpense = {
+export type FixedExpense = {
   id: string;
   name: string;
   amount: number;
@@ -18,11 +23,21 @@ type FixedExpense = {
 
 type Status = "green" | "yellow" | "red";
 
+type PersistedData = {
+  monthlyBudget: number;
+  salaryDay: number;
+  fixedExpenses: FixedExpense[];
+  recentExpenses: Expense[];
+  trackingStartedAt: string;
+};
+
 type FinanceStore = {
   monthlyBudget: number;
   salaryDay: number;
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
+  trackingStartedAt: string;
+
   remaining: number;
   daysLeft: number;
   dailyBudget: number;
@@ -32,7 +47,20 @@ type FinanceStore = {
   totalSpentCore: number;
   nextSalaryDate: Date;
   status: Status;
-  addExpense: (amount: number, category: ExpenseCategory, note?: string) => void;
+
+  weeklyBudget: number;
+  weeklyRemaining: number;
+  weeklySavings: number;
+  weeklySpent: number;
+  weeklyStatus: Status;
+  currentWeekStart: Date;
+  currentWeekEnd: Date;
+
+  addExpense: (
+    amount: number,
+    category: ExpenseCategory,
+    note?: string
+  ) => void;
   removeExpense: (id: string) => void;
   addFixedExpense: (name: string, amount: number) => void;
   updateFixedExpense: (id: string, name: string, amount: number) => void;
@@ -44,26 +72,17 @@ type FinanceStore = {
 const STORAGE_KEY = "until-payday-finance";
 const DAY_MS = 1000 * 60 * 60 * 24;
 
-type PersistedData = {
-  monthlyBudget: number;
-  salaryDay: number;
-  fixedExpenses: FixedExpense[];
-  recentExpenses: Expense[];
-  trackingStartedAt: string;
-};
-
 function roundMoney(value: number) {
   const rounded = Math.round(value * 100) / 100;
   return Object.is(rounded, -0) ? 0 : rounded;
 }
 
-function startOfToday() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function startOfToday() {
+  return startOfDay(new Date());
 }
 
 function toDayKey(date: Date) {
@@ -134,17 +153,34 @@ function getDaysLeft(nextSalaryDate: Date) {
   const today = startOfToday();
   const diffMs = nextSalaryDate.getTime() - today.getTime();
   const days = Math.ceil(diffMs / DAY_MS);
-
   return Math.max(days, 1);
 }
 
 function isSameDay(dateString: string, compareDate: Date) {
   const date = new Date(dateString);
-
   return (
     date.getFullYear() === compareDate.getFullYear() &&
     date.getMonth() === compareDate.getMonth() &&
     date.getDate() === compareDate.getDate()
+  );
+}
+
+function getWeekStart(date: Date) {
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return startOfDay(
+    new Date(date.getFullYear(), date.getMonth(), date.getDate() + diff)
+  );
+}
+
+function getWeekEnd(date: Date) {
+  const weekStart = getWeekStart(date);
+  return startOfDay(
+    new Date(
+      weekStart.getFullYear(),
+      weekStart.getMonth(),
+      weekStart.getDate() + 6
+    )
   );
 }
 
@@ -161,6 +197,14 @@ function isExpenseInCurrentCycle(
   );
 }
 
+function getMaxDate(a: Date, b: Date) {
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
+function getMinDate(a: Date, b: Date) {
+  return a.getTime() <= b.getTime() ? a : b;
+}
+
 function calculateDerived(data: PersistedData) {
   const today = startOfToday();
   const nextSalaryDate = getNextSalaryDate(data.salaryDay);
@@ -168,10 +212,13 @@ function calculateDerived(data: PersistedData) {
   const daysLeft = getDaysLeft(nextSalaryDate);
 
   const trackingStartedAtDate = startOfDay(new Date(data.trackingStartedAt));
-  const effectiveTrackingStart =
-    trackingStartedAtDate > previousSalaryDate
-      ? trackingStartedAtDate
-      : previousSalaryDate;
+  const effectiveTrackingStart = getMaxDate(
+    trackingStartedAtDate,
+    previousSalaryDate
+  );
+
+  const currentWeekStart = getWeekStart(today);
+  const currentWeekEnd = getWeekEnd(today);
 
   const cycleExpenses = data.recentExpenses.filter((expense) =>
     isExpenseInCurrentCycle(expense, previousSalaryDate, nextSalaryDate)
@@ -193,63 +240,104 @@ function calculateDerived(data: PersistedData) {
     .reduce((sum, expense) => sum + expense.amount, 0);
 
   let budgetAtStartOfDay = data.monthlyBudget;
-  let currentCursor = startOfDay(previousSalaryDate);
+  let cursor = startOfDay(effectiveTrackingStart);
 
-  while (currentCursor < effectiveTrackingStart) {
-    const dayKey = toDayKey(currentCursor);
-    const spentThisDay = expensesByDay.get(dayKey) ?? 0;
-    budgetAtStartOfDay -= spentThisDay;
-    currentCursor = new Date(currentCursor.getTime() + DAY_MS);
-  }
+  let dailyBudget = 0;
+  let monthlyCarryover = 0;
 
-  let carryoverFromPastDays = 0;
-  let todayBudget = 0;
+  let weeklyProjectedLimit = 0;
+  let weeklySpent = 0;
+  let weeklyCarryover = 0;
+  let todayPlannedInWeek = 0;
 
-  while (currentCursor <= today && currentCursor < nextSalaryDate) {
-    const dayKey = toDayKey(currentCursor);
-    const spentThisDay = expensesByDay.get(dayKey) ?? 0;
-    const isToday = toDayKey(currentCursor) === toDayKey(today);
+  const lastDayOfWeekInCycle = getMinDate(
+    currentWeekEnd,
+    startOfDay(
+      new Date(nextSalaryDate.getFullYear(), nextSalaryDate.getMonth(), nextSalaryDate.getDate() - 1)
+    )
+  );
 
-    const daysRemainingIncludingThisDay = Math.max(
-      1,
-      daysBetween(currentCursor, nextSalaryDate)
-    );
+  while (cursor <= lastDayOfWeekInCycle) {
+    const daysRemainingInCycle = Math.max(1, daysBetween(cursor, nextSalaryDate));
+    const plannedForDay = budgetAtStartOfDay / daysRemainingInCycle;
+    const isTodayCursor = toDayKey(cursor) === toDayKey(today);
+    const isPastDay = cursor.getTime() < today.getTime();
+    const isCurrentWeekDay =
+      cursor.getTime() >= currentWeekStart.getTime() &&
+      cursor.getTime() <= currentWeekEnd.getTime();
 
-    const plannedForThisDay = budgetAtStartOfDay / daysRemainingIncludingThisDay;
+    const spentThisDay = isPastDay || isTodayCursor
+      ? expensesByDay.get(toDayKey(cursor)) ?? 0
+      : 0;
 
-    if (isToday) {
-      todayBudget = plannedForThisDay;
-    } else {
-      carryoverFromPastDays += plannedForThisDay - spentThisDay;
+    if (isTodayCursor) {
+      dailyBudget = plannedForDay;
+    }
+
+    if (isPastDay) {
+      monthlyCarryover += plannedForDay - spentThisDay;
+    } else if (isTodayCursor) {
+      monthlyCarryover += Math.min(0, plannedForDay - spentThisDay);
+    }
+
+    if (isCurrentWeekDay) {
+      weeklyProjectedLimit += plannedForDay;
+
+      if (isPastDay) {
+        weeklyCarryover += plannedForDay - spentThisDay;
+        weeklySpent += spentThisDay;
+      } else if (isTodayCursor) {
+        todayPlannedInWeek = plannedForDay;
+        weeklyCarryover += Math.min(0, plannedForDay - spentThisDay);
+        weeklySpent += spentThisDay;
+      }
     }
 
     budgetAtStartOfDay -= spentThisDay;
-    currentCursor = new Date(currentCursor.getTime() + DAY_MS);
+    cursor = startOfDay(
+      new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1)
+    );
   }
 
-  const todayRemaining = todayBudget - spentToday;
-
-  const savings =
-    carryoverFromPastDays + (todayRemaining < 0 ? todayRemaining : 0);
+  const weeklyRemaining = weeklyProjectedLimit - weeklySpent;
 
   let status: Status = "green";
+  const todayRemaining = dailyBudget - spentToday;
 
   if (remaining < -0.01) {
     status = "red";
-  } else if (todayRemaining < -0.01 || savings < -0.01) {
+  } else if (todayRemaining < -0.01 || monthlyCarryover < -0.01) {
     status = "yellow";
+  }
+
+  let weeklyStatus: Status = "green";
+  if (weeklyRemaining < -0.01) {
+    weeklyStatus = "red";
+  } else if (
+    todayPlannedInWeek - spentToday < -0.01 ||
+    weeklyCarryover < -0.01
+  ) {
+    weeklyStatus = "yellow";
   }
 
   return {
     remaining: roundMoney(remaining),
     daysLeft,
-    dailyBudget: roundMoney(todayBudget),
+    dailyBudget: roundMoney(dailyBudget),
     spentToday: roundMoney(spentToday),
-    savings: roundMoney(savings),
+    savings: roundMoney(monthlyCarryover),
     fixedTotal: roundMoney(fixedTotal),
     totalSpentCore: roundMoney(totalSpentCore),
     nextSalaryDate,
     status,
+
+    weeklyBudget: roundMoney(weeklyProjectedLimit),
+    weeklyRemaining: roundMoney(weeklyRemaining),
+    weeklySavings: roundMoney(weeklyCarryover),
+    weeklySpent: roundMoney(weeklySpent),
+    weeklyStatus,
+    currentWeekStart,
+    currentWeekEnd,
   };
 }
 
@@ -324,10 +412,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         },
         ...current.recentExpenses,
       ],
-      trackingStartedAt:
-        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
-          ? current.trackingStartedAt
-          : startOfToday().toISOString(),
+      trackingStartedAt: current.trackingStartedAt,
     };
 
     saveData(updatedData);
@@ -345,10 +430,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay: current.salaryDay,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses.filter((item) => item.id !== id),
-      trackingStartedAt:
-        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
-          ? current.trackingStartedAt
-          : startOfToday().toISOString(),
+      trackingStartedAt: current.trackingStartedAt,
     };
 
     saveData(updatedData);
@@ -373,10 +455,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         },
       ],
       recentExpenses: current.recentExpenses,
-      trackingStartedAt:
-        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
-          ? current.trackingStartedAt
-          : startOfToday().toISOString(),
+      trackingStartedAt: current.trackingStartedAt,
     };
 
     saveData(updatedData);
@@ -402,10 +481,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
           : item
       ),
       recentExpenses: current.recentExpenses,
-      trackingStartedAt:
-        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
-          ? current.trackingStartedAt
-          : startOfToday().toISOString(),
+      trackingStartedAt: current.trackingStartedAt,
     };
 
     saveData(updatedData);
@@ -423,10 +499,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay: current.salaryDay,
       fixedExpenses: current.fixedExpenses.filter((item) => item.id !== id),
       recentExpenses: current.recentExpenses,
-      trackingStartedAt:
-        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
-          ? current.trackingStartedAt
-          : startOfToday().toISOString(),
+      trackingStartedAt: current.trackingStartedAt,
     };
 
     saveData(updatedData);
@@ -462,10 +535,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay: current.salaryDay,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
-      trackingStartedAt:
-        "trackingStartedAt" in current && typeof current.trackingStartedAt === "string"
-          ? current.trackingStartedAt
-          : startOfToday().toISOString(),
+      trackingStartedAt: current.trackingStartedAt,
     };
 
     set({

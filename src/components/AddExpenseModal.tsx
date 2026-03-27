@@ -1,14 +1,31 @@
 import { useEffect, useState } from "react";
-import { UtensilsCrossed, Wallet } from "lucide-react";
+import {
+  Dumbbell,
+  Fuel,
+  PartyPopper,
+  UtensilsCrossed,
+  Wallet,
+} from "lucide-react";
 import { BottomSheet } from "@/components/BottomSheet";
-
-type ExpenseCategory = "food" | "other";
+import type { ExpenseCategory } from "@/hooks/useFinanceStore";
 
 type AddExpenseModalProps = {
   open: boolean;
   onClose: () => void;
-  onAdd: (amount: number, category: ExpenseCategory, note?: string) => void;
+  onAdd: (amount: number, category: ExpenseCategory) => void;
 };
+
+const categories: Array<{
+  value: ExpenseCategory;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { value: "food", label: "Еда", icon: UtensilsCrossed },
+  { value: "sport", label: "Спорт", icon: Dumbbell },
+  { value: "fuel", label: "Бензин", icon: Fuel },
+  { value: "entertainment", label: "Развлечения", icon: PartyPopper },
+  { value: "other", label: "Другое", icon: Wallet },
+];
 
 export function AddExpenseModal({
   open,
@@ -17,13 +34,11 @@ export function AddExpenseModal({
 }: AddExpenseModalProps) {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<ExpenseCategory>("other");
-  const [note, setNote] = useState("");
 
   useEffect(() => {
     if (!open) {
       setAmount("");
       setCategory("other");
-      setNote("");
     }
   }, [open]);
 
@@ -32,7 +47,7 @@ export function AddExpenseModal({
 
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return;
 
-    onAdd(parsedAmount, category, note.trim() || undefined);
+    onAdd(parsedAmount, category);
     onClose();
   };
 
@@ -53,7 +68,7 @@ export function AddExpenseModal({
         </button>
       </div>
 
-      <label className="mb-3 block">
+      <label className="mb-4 block">
         <span className="mb-1 block text-sm text-gray-600">Сумма</span>
         <input
           type="number"
@@ -61,58 +76,44 @@ export function AddExpenseModal({
           step="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          placeholder="Например, 12.50"
+          placeholder="Например, 18.50"
           className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none"
+          autoFocus
         />
       </label>
 
-      <div className="mb-3">
+      <div className="mb-4">
         <span className="mb-2 block text-sm text-gray-600">Категория</span>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setCategory("food")}
-            className={`rounded-2xl border px-4 py-3 text-sm font-semibold flex items-center justify-center gap-2 ${
-              category === "food"
-                ? "border-gray-900 bg-gray-900 text-white"
-                : "border-gray-300 bg-white text-gray-900"
-            }`}
-          >
-            <UtensilsCrossed className="h-4 w-4" />
-            Еда
-          </button>
 
-          <button
-            type="button"
-            onClick={() => setCategory("other")}
-            className={`rounded-2xl border px-4 py-3 text-sm font-semibold flex items-center justify-center gap-2 ${
-              category === "other"
-                ? "border-gray-900 bg-gray-900 text-white"
-                : "border-gray-300 bg-white text-gray-900"
-            }`}
-          >
-            <Wallet className="h-4 w-4" />
-            Другое
-          </button>
+        <div className="grid grid-cols-2 gap-2">
+          {categories.map((item) => {
+            const Icon = item.icon;
+            const isActive = category === item.value;
+
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setCategory(item.value)}
+                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                  isActive
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-300 bg-white text-gray-900"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <label className="block">
-        <span className="mb-1 block text-sm text-gray-600">Заметка</span>
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Необязательно"
-          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none"
-        />
-      </label>
-
       <button
         onClick={handleSubmit}
-        className="mt-5 w-full rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm"
+        className="w-full rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm"
       >
-        Сохранить расход
+        Добавить
       </button>
     </BottomSheet>
   );
