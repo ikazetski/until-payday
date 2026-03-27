@@ -26,75 +26,60 @@ function startOfToday() {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-function toInputValue(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function getSafeDay(year: number, month: number, day: number) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   return Math.min(Math.max(day, 1), daysInMonth);
 }
 
-function getSelectableDateRange() {
+function getMonthOptions() {
   const today = startOfToday();
-  const lastDayOfNextMonth = new Date(
-    today.getFullYear(),
-    today.getMonth() + 2,
-    0
-  );
 
-  return {
-    min: toInputValue(today),
-    max: toInputValue(lastDayOfNextMonth),
-  };
+  const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
+  const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+  return [
+    {
+      key: "current",
+      year: currentMonthDate.getFullYear(),
+      month: currentMonthDate.getMonth(),
+      label: currentMonthDate.toLocaleDateString("ru-RU", {
+        month: "long",
+        year: "numeric",
+      }).replace(/^./, (s) => s.toUpperCase()),
+    },
+    {
+      key: "next",
+      year: nextMonthDate.getFullYear(),
+      month: nextMonthDate.getMonth(),
+      label: nextMonthDate.toLocaleDateString("ru-RU", {
+        month: "long",
+        year: "numeric",
+      }).replace(/^./, (s) => s.toUpperCase()),
+    },
+  ] as const;
 }
 
-function getDateValueFromSalaryDay(day: number) {
+function getInitialMonthOffsetAndDay(salaryDay: number) {
   const today = startOfToday();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-
-  const currentMonthCandidate = new Date(
-    year,
-    month,
-    getSafeDay(year, month, day)
+  const currentCandidate = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    getSafeDay(today.getFullYear(), today.getMonth(), salaryDay)
   );
 
-  if (currentMonthCandidate >= today) {
-    return toInputValue(currentMonthCandidate);
+  if (currentCandidate >= today) {
+    return {
+      monthOffset: 0,
+      day: currentCandidate.getDate(),
+    };
   }
 
-  const nextMonthYear = month === 11 ? year + 1 : year;
-  const nextMonth = (month + 1) % 12;
+  const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
-  const nextMonthCandidate = new Date(
-    nextMonthYear,
-    nextMonth,
-    getSafeDay(nextMonthYear, nextMonth, day)
-  );
-
-  return toInputValue(nextMonthCandidate);
-}
-
-function isWithinCurrentOrNextMonth(date: Date) {
-  const today = startOfToday();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-
-  const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
-  const nextMonth = nextMonthDate.getMonth();
-  const nextMonthYear = nextMonthDate.getFullYear();
-
-  const month = date.getMonth();
-  const year = date.getFullYear();
-
-  return (
-    (month === currentMonth && year === currentYear) ||
-    (month === nextMonth && year === nextMonthYear)
-  );
+  return {
+    monthOffset: 1,
+    day: getSafeDay(nextMonthDate.getFullYear(), nextMonthDate.getMonth(), salaryDay),
+  };
 }
 
 export function SettingsSheet({
@@ -109,21 +94,39 @@ export function SettingsSheet({
   onRemoveFixed,
 }: SettingsSheetProps) {
   const [budgetValue, setBudgetValue] = useState(String(monthlyBudget));
-  const [salaryDateValue, setSalaryDateValue] = useState(
-    getDateValueFromSalaryDay(salaryDay)
-  );
+  const [selectedMonthOffset, setSelectedMonthOffset] = useState<0 | 1>(0);
+  const [selectedDay, setSelectedDay] = useState(1);
+
   const [fixedName, setFixedName] = useState("");
   const [fixedAmount, setFixedAmount] = useState("");
   const [editingFixedId, setEditingFixedId] = useState<string | null>(null);
 
-  const dateRange = getSelectableDateRange();
+  const monthOptions = useMemo(() => getMonthOptions(), []);
+  const today = startOfToday();
 
   useEffect(() => {
     if (open) {
+      const initial = getInitialMonthOffsetAndDay(salaryDay);
       setBudgetValue(String(monthlyBudget));
-      setSalaryDateValue(getDateValueFromSalaryDay(salaryDay));
+      setSelectedMonthOffset(initial.monthOffset as 0 | 1);
+      setSelectedDay(initial.day);
     }
   }, [open, monthlyBudget, salaryDay]);
+
+  const selectedMonthMeta = monthOptions[selectedMonthOffset];
+  const daysInSelectedMonth = new Date(
+    selectedMonthMeta.year,
+    selectedMonthMeta.month + 1,
+    0
+  ).getDate();
+
+  const dayOptions = Array.from({ length: daysInSelectedMonth }, (_, index) => index + 1);
+
+  useEffect(() => {
+    if (selectedDay > daysInSelectedMonth) {
+      setSelectedDay(daysInSelectedMonth);
+    }
+  }, [selectedDay, daysInSelectedMonth]);
 
   const totalFixed = useMemo(
     () => fixedExpenses.reduce((sum, item) => sum + item.amount, 0),
@@ -132,15 +135,18 @@ export function SettingsSheet({
 
   const handleSaveSettings = () => {
     const parsedBudget = Number(budgetValue);
-    const selectedDate = new Date(salaryDateValue);
-    const today = startOfToday();
 
     if (!Number.isFinite(parsedBudget) || parsedBudget < 0) return;
-    if (Number.isNaN(selectedDate.getTime())) return;
-    if (selectedDate < today) return;
-    if (!isWithinCurrentOrNextMonth(selectedDate)) return;
 
-    onUpdateSettings(parsedBudget, selectedDate.getDate());
+    const selectedDate = new Date(
+      selectedMonthMeta.year,
+      selectedMonthMeta.month,
+      selectedDay
+    );
+
+    if (selectedDate < today) return;
+
+    onUpdateSettings(parsedBudget, selectedDay);
     onClose();
   };
 
@@ -207,20 +213,48 @@ export function SettingsSheet({
           />
         </label>
 
-        <label className="block min-w-0">
+        <div className="block min-w-0">
           <span className="mb-1 block text-sm text-gray-600">Дата зарплаты</span>
-          <input
-            type="date"
-            value={salaryDateValue}
-            min={dateRange.min}
-            max={dateRange.max}
-            onChange={(e) => setSalaryDateValue(e.target.value)}
-            className="date-input-fix block w-full min-w-0 max-w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[14px] outline-none"
-          />
+
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={selectedMonthOffset}
+              onChange={(e) => setSelectedMonthOffset(Number(e.target.value) as 0 | 1)}
+              className="block w-full min-w-0 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none"
+            >
+              {monthOptions.map((option, index) => (
+                <option key={option.key} value={index}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(Number(e.target.value))}
+              className="block w-full min-w-0 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none"
+            >
+              {dayOptions.map((day) => {
+                const optionDate = new Date(
+                  selectedMonthMeta.year,
+                  selectedMonthMeta.month,
+                  day
+                );
+                const disabled = optionDate < today;
+
+                return (
+                  <option key={day} value={day} disabled={disabled}>
+                    {day}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
           <span className="mt-1 block text-xs text-gray-500">
-            Можно выбрать дату только в текущем или следующем месяце.
+            Можно выбрать только текущий или следующий месяц.
           </span>
-        </label>
+        </div>
 
         <button
           onClick={handleSaveSettings}

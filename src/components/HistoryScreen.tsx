@@ -14,10 +14,12 @@ type HistoryScreenProps = {
 };
 
 function getMonthLabel(date: Date) {
-  return date.toLocaleDateString("ru-RU", {
-    month: "long",
-    year: "numeric",
-  }).replace(/^./, (s) => s.toUpperCase());
+  return date
+    .toLocaleDateString("ru-RU", {
+      month: "long",
+      year: "numeric",
+    })
+    .replace(/^./, (s) => s.toUpperCase());
 }
 
 function getMonthExpenses(expenses: Expense[], year: number, month: number) {
@@ -27,13 +29,29 @@ function getMonthExpenses(expenses: Expense[], year: number, month: number) {
   });
 }
 
+function getDeltaLabel(delta: number, isCurrentMonth: boolean) {
+  if (delta < 0) {
+    return "Перерасход";
+  }
+
+  return isCurrentMonth ? "Остаток" : "Сэкономлено";
+}
+
 export function HistoryScreen({
   expenses,
   monthlyBudget,
 }: HistoryScreenProps) {
   const now = new Date();
-  const currentMonthExpenses = getMonthExpenses(expenses, now.getFullYear(), now.getMonth());
-  const currentMonthTotal = currentMonthExpenses.reduce((sum, item) => sum + item.amount, 0);
+
+  const currentMonthExpenses = getMonthExpenses(
+    expenses,
+    now.getFullYear(),
+    now.getMonth()
+  );
+  const currentMonthTotal = currentMonthExpenses.reduce(
+    (sum, item) => sum + item.amount,
+    0
+  );
   const currentMonthDelta = monthlyBudget - currentMonthTotal;
 
   const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -42,6 +60,11 @@ export function HistoryScreen({
     previousMonthDate.getFullYear(),
     previousMonthDate.getMonth()
   );
+  const previousMonthTotal = previousMonthExpenses.reduce(
+    (sum, item) => sum + item.amount,
+    0
+  );
+  const previousMonthDelta = monthlyBudget - previousMonthTotal;
 
   return (
     <div className="min-h-screen bg-background px-5 pt-safe pb-24 max-w-md mx-auto">
@@ -77,7 +100,7 @@ export function HistoryScreen({
 
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">
-              {currentMonthDelta >= 0 ? "Save" : "Перерасход"}
+              {getDeltaLabel(currentMonthDelta, true)}
             </span>
             <span
               className={`font-semibold ${
@@ -104,9 +127,35 @@ export function HistoryScreen({
             Истории за прошлый месяц еще нет.
           </p>
         ) : (
-          <p className="text-sm text-gray-900">
-            Найдено операций: {previousMonthExpenses.length}
-          </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Расходы за месяц</span>
+              <span className="font-semibold text-gray-900">
+                {formatMoney(previousMonthTotal)} BYN
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Лимит</span>
+              <span className="font-semibold text-gray-900">
+                {formatMoney(monthlyBudget)} BYN
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">
+                {getDeltaLabel(previousMonthDelta, false)}
+              </span>
+              <span
+                className={`font-semibold ${
+                  previousMonthDelta >= 0 ? "text-emerald-600" : "text-red-600"
+                }`}
+              >
+                {previousMonthDelta > 0 ? "+" : ""}
+                {formatMoney(previousMonthDelta)} BYN
+              </span>
+            </div>
+          </div>
         )}
       </div>
     </div>
