@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
-import { formatMoney } from "@/lib/utils";
-import type { Expense } from "@/hooks/useFinanceStore";
+import { formatMoneyWithCurrency, } from "@/lib/utils";
+import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 
 type HistoryScreenProps = {
   expenses: Expense[];
   monthlyBudget: number;
+  currency: CurrencyCode;
 };
 
 type HistoryMode = "weeks" | "months";
@@ -164,9 +165,11 @@ function roundMoney(value: number) {
 function HistoryPeriodCard({
   group,
   mode,
+  currency,
 }: {
   group: PeriodGroup;
   mode: HistoryMode;
+  currency: CurrencyCode;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -188,7 +191,7 @@ function HistoryPeriodCard({
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Расходы</span>
           <span className="font-semibold text-gray-900">
-            {formatMoney(group.total)} BYN
+            {formatMoneyWithCurrency(group.total, currency)}
           </span>
         </div>
 
@@ -197,7 +200,7 @@ function HistoryPeriodCard({
             {mode === "weeks" ? "Лимит недели" : "Лимит месяца"}
           </span>
           <span className="font-semibold text-gray-900">
-            {formatMoney(group.limit)} BYN
+            {formatMoneyWithCurrency(group.limit, currency)}
           </span>
         </div>
 
@@ -211,7 +214,7 @@ function HistoryPeriodCard({
             }`}
           >
             {group.delta > 0 ? "+" : ""}
-            {formatMoney(group.delta)} BYN
+            {formatMoneyWithCurrency(group.delta, currency)}
           </span>
         </div>
       </div>
@@ -237,7 +240,7 @@ function HistoryPeriodCard({
                   </div>
 
                   <span className="ml-3 text-sm font-semibold text-gray-900">
-                    −{formatMoney(expense.amount)} BYN
+                    −{formatMoneyWithCurrency(group.delta, currency)}
                   </span>
                 </div>
               ))}
@@ -261,6 +264,7 @@ function HistoryPeriodCard({
 export function HistoryScreen({
   expenses,
   monthlyBudget,
+  currency,
 }: HistoryScreenProps) {
   const [mode, setMode] = useState<HistoryMode>("weeks");
 
@@ -318,7 +322,12 @@ export function HistoryScreen({
       ) : (
         <div className="space-y-4">
           {visibleGroups.map((group) => (
-            <HistoryPeriodCard key={group.id} group={group} mode={mode} />
+            <HistoryPeriodCard
+              key={group.id}
+              group={group}
+              mode={mode}
+              currency={currency}
+            />
           ))}
         </div>
       )}
