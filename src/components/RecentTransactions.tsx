@@ -6,12 +6,17 @@ import {
   UtensilsCrossed,
   Wallet,
 } from "lucide-react";
-import { formatMoney } from "@/lib/utils";
-import type { Expense, ExpenseCategory } from "@/hooks/useFinanceStore";
+import { formatMoneyWithCurrency } from "@/lib/utils";
+import type {
+  Expense,
+  ExpenseCategory,
+  CurrencyCode,
+} from "@/hooks/useFinanceStore";
 
 type RecentTransactionsProps = {
   expenses: Expense[];
   periodTitle: string;
+  currency: CurrencyCode;
 };
 
 function getCategoryLabel(category: ExpenseCategory) {
@@ -47,6 +52,7 @@ function getCategoryIcon(category: ExpenseCategory) {
 export function RecentTransactions({
   expenses,
   periodTitle,
+  currency,
 }: RecentTransactionsProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -100,7 +106,7 @@ export function RecentTransactions({
                   </div>
 
                   <span className="ml-3 text-sm font-semibold text-gray-900">
-                    −{formatMoney(expense.amount)} BYN
+                    −{formatMoneyWithCurrency(expense.amount, currency)}
                   </span>
                 </div>
               );

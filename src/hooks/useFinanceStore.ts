@@ -15,6 +15,8 @@ export type Expense = {
   createdAt: string;
 };
 
+export type CurrencyCode = "BYN" | "EUR" | "USD" | "RUB" | "UAH";
+
 export type FixedExpense = {
   id: string;
   name: string;
@@ -26,6 +28,7 @@ type Status = "green" | "yellow" | "red";
 type PersistedData = {
   monthlyBudget: number;
   salaryDay: number;
+  currency: CurrencyCode;
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
@@ -34,6 +37,7 @@ type PersistedData = {
 type FinanceStore = {
   monthlyBudget: number;
   salaryDay: number;
+  currency: CurrencyCode;
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
@@ -65,7 +69,11 @@ type FinanceStore = {
   addFixedExpense: (name: string, amount: number) => void;
   updateFixedExpense: (id: string, name: string, amount: number) => void;
   removeFixedExpense: (id: string) => void;
-  updateSettings: (monthlyBudget: number, salaryDay: number) => void;
+  updateSettings: (
+    monthlyBudget: number,
+    salaryDay: number,
+    currency: CurrencyCode
+  ) => void;
   refreshDerived: () => void;
 };
 
@@ -100,6 +108,17 @@ function daysBetween(start: Date, end: Date) {
     0,
     Math.round((endDate.getTime() - startDate.getTime()) / DAY_MS)
   );
+}
+
+function countInclusiveDays(start: Date, end: Date) {
+  const startDate = startOfDay(start);
+  const endDate = startOfDay(end);
+
+  if (startDate.getTime() > endDate.getTime()) {
+    return 0;
+  }
+
+  return Math.floor((endDate.getTime() - startDate.getTime()) / DAY_MS) + 1;
 }
 
 function getSafeDay(year: number, month: number, salaryDay: number) {
@@ -153,11 +172,13 @@ function getDaysLeft(nextSalaryDate: Date) {
   const today = startOfToday();
   const diffMs = nextSalaryDate.getTime() - today.getTime();
   const days = Math.ceil(diffMs / DAY_MS);
+
   return Math.max(days, 1);
 }
 
 function isSameDay(dateString: string, compareDate: Date) {
   const date = new Date(dateString);
+
   return (
     date.getFullYear() === compareDate.getFullYear() &&
     date.getMonth() === compareDate.getMonth() &&
@@ -168,6 +189,7 @@ function isSameDay(dateString: string, compareDate: Date) {
 function getWeekStart(date: Date) {
   const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day;
+
   return startOfDay(
     new Date(date.getFullYear(), date.getMonth(), date.getDate() + diff)
   );
@@ -175,6 +197,7 @@ function getWeekStart(date: Date) {
 
 function getWeekEnd(date: Date) {
   const weekStart = getWeekStart(date);
+
   return startOfDay(
     new Date(
       weekStart.getFullYear(),
@@ -182,6 +205,14 @@ function getWeekEnd(date: Date) {
       weekStart.getDate() + 6
     )
   );
+}
+
+function getMaxDate(a: Date, b: Date) {
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
+function getMinDate(a: Date, b: Date) {
+  return a.getTime() <= b.getTime() ? a : b;
 }
 
 function isExpenseInCurrentCycle(
@@ -195,14 +226,6 @@ function isExpenseInCurrentCycle(
     expenseDate >= startOfDay(previousSalaryDate).getTime() &&
     expenseDate < startOfDay(nextSalaryDate).getTime()
   );
-}
-
-function getMaxDate(a: Date, b: Date) {
-  return a.getTime() >= b.getTime() ? a : b;
-}
-
-function getMinDate(a: Date, b: Date) {
-  return a.getTime() <= b.getTime() ? a : b;
 }
 
 function calculateDerived(data: PersistedData) {
@@ -244,31 +267,14 @@ function calculateDerived(data: PersistedData) {
 
   let dailyBudget = 0;
   let monthlyCarryover = 0;
-
-  let weeklyProjectedLimit = 0;
-  let weeklySpent = 0;
   let weeklyCarryover = 0;
-  let todayPlannedInWeek = 0;
 
-  const lastDayOfWeekInCycle = getMinDate(
-    currentWeekEnd,
-    startOfDay(
-      new Date(nextSalaryDate.getFullYear(), nextSalaryDate.getMonth(), nextSalaryDate.getDate() - 1)
-    )
-  );
-
-  while (cursor <= lastDayOfWeekInCycle) {
+  while (cursor <= today) {
     const daysRemainingInCycle = Math.max(1, daysBetween(cursor, nextSalaryDate));
     const plannedForDay = budgetAtStartOfDay / daysRemainingInCycle;
+    const spentThisDay = expensesByDay.get(toDayKey(cursor)) ?? 0;
     const isTodayCursor = toDayKey(cursor) === toDayKey(today);
     const isPastDay = cursor.getTime() < today.getTime();
-    const isCurrentWeekDay =
-      cursor.getTime() >= currentWeekStart.getTime() &&
-      cursor.getTime() <= currentWeekEnd.getTime();
-
-    const spentThisDay = isPastDay || isTodayCursor
-      ? expensesByDay.get(toDayKey(cursor)) ?? 0
-      : 0;
 
     if (isTodayCursor) {
       dailyBudget = plannedForDay;
@@ -276,20 +282,19 @@ function calculateDerived(data: PersistedData) {
 
     if (isPastDay) {
       monthlyCarryover += plannedForDay - spentThisDay;
-    } else if (isTodayCursor) {
+    } else {
       monthlyCarryover += Math.min(0, plannedForDay - spentThisDay);
     }
 
-    if (isCurrentWeekDay) {
-      weeklyProjectedLimit += plannedForDay;
+    const isCurrentWeekDay =
+      cursor.getTime() >= currentWeekStart.getTime() &&
+      cursor.getTime() <= currentWeekEnd.getTime();
 
+    if (isCurrentWeekDay) {
       if (isPastDay) {
         weeklyCarryover += plannedForDay - spentThisDay;
-        weeklySpent += spentThisDay;
-      } else if (isTodayCursor) {
-        todayPlannedInWeek = plannedForDay;
+      } else {
         weeklyCarryover += Math.min(0, plannedForDay - spentThisDay);
-        weeklySpent += spentThisDay;
       }
     }
 
@@ -299,7 +304,24 @@ function calculateDerived(data: PersistedData) {
     );
   }
 
-  const weeklyRemaining = weeklyProjectedLimit - weeklySpent;
+  const lastWeekDayInCycle = getMinDate(
+    currentWeekEnd,
+    startOfDay(
+      new Date(
+        nextSalaryDate.getFullYear(),
+        nextSalaryDate.getMonth(),
+        nextSalaryDate.getDate() - 1
+      )
+    )
+  );
+
+  const remainingWeekDays = countInclusiveDays(today, lastWeekDayInCycle);
+
+  // Неделя считается только по фактам на текущий момент:
+  // текущий дневной лимит * оставшиеся дни недели.
+  const weeklyBudget = dailyBudget * remainingWeekDays;
+  const weeklySpent = spentToday;
+  const weeklyRemaining = weeklyBudget - weeklySpent;
 
   let status: Status = "green";
   const todayRemaining = dailyBudget - spentToday;
@@ -311,12 +333,10 @@ function calculateDerived(data: PersistedData) {
   }
 
   let weeklyStatus: Status = "green";
+
   if (weeklyRemaining < -0.01) {
     weeklyStatus = "red";
-  } else if (
-    todayPlannedInWeek - spentToday < -0.01 ||
-    weeklyCarryover < -0.01
-  ) {
+  } else if (todayRemaining < -0.01 || weeklyCarryover < -0.01) {
     weeklyStatus = "yellow";
   }
 
@@ -331,7 +351,7 @@ function calculateDerived(data: PersistedData) {
     nextSalaryDate,
     status,
 
-    weeklyBudget: roundMoney(weeklyProjectedLimit),
+    weeklyBudget: roundMoney(weeklyBudget),
     weeklyRemaining: roundMoney(weeklyRemaining),
     weeklySavings: roundMoney(weeklyCarryover),
     weeklySpent: roundMoney(weeklySpent),
@@ -345,6 +365,7 @@ function loadInitialData(): PersistedData {
   const fallback: PersistedData = {
     monthlyBudget: 0,
     salaryDay: 25,
+    currency: "BYN",
     fixedExpenses: [],
     recentExpenses: [],
     trackingStartedAt: startOfToday().toISOString(),
@@ -367,6 +388,14 @@ function loadInitialData(): PersistedData {
         typeof parsed.salaryDay === "number"
           ? parsed.salaryDay
           : fallback.salaryDay,
+      currency:
+        parsed.currency === "BYN" ||
+        parsed.currency === "EUR" ||
+        parsed.currency === "USD" ||
+        parsed.currency === "RUB" ||
+        parsed.currency === "UAH"
+          ? parsed.currency
+          : fallback.currency,
       fixedExpenses: Array.isArray(parsed.fixedExpenses)
         ? parsed.fixedExpenses
         : fallback.fixedExpenses,
@@ -401,6 +430,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const updatedData: PersistedData = {
       monthlyBudget: current.monthlyBudget,
       salaryDay: current.salaryDay,
+      currency: current.currency,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: [
         {
@@ -428,6 +458,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const updatedData: PersistedData = {
       monthlyBudget: current.monthlyBudget,
       salaryDay: current.salaryDay,
+      currency: current.currency,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses.filter((item) => item.id !== id),
       trackingStartedAt: current.trackingStartedAt,
@@ -446,6 +477,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const updatedData: PersistedData = {
       monthlyBudget: current.monthlyBudget,
       salaryDay: current.salaryDay,
+      currency: current.currency,
       fixedExpenses: [
         ...current.fixedExpenses,
         {
@@ -471,6 +503,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const updatedData: PersistedData = {
       monthlyBudget: current.monthlyBudget,
       salaryDay: current.salaryDay,
+      currency: current.currency,
       fixedExpenses: current.fixedExpenses.map((item) =>
         item.id === id
           ? {
@@ -497,6 +530,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const updatedData: PersistedData = {
       monthlyBudget: current.monthlyBudget,
       salaryDay: current.salaryDay,
+      currency: current.currency,
       fixedExpenses: current.fixedExpenses.filter((item) => item.id !== id),
       recentExpenses: current.recentExpenses,
       trackingStartedAt: current.trackingStartedAt,
@@ -509,12 +543,13 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     });
   },
 
-  updateSettings: (monthlyBudget, salaryDay) => {
+    updateSettings: (monthlyBudget, salaryDay, currency) => {
     const current = get();
 
     const updatedData: PersistedData = {
       monthlyBudget: roundMoney(monthlyBudget),
       salaryDay,
+      currency,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
       trackingStartedAt: startOfToday().toISOString(),
@@ -533,6 +568,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const currentData: PersistedData = {
       monthlyBudget: current.monthlyBudget,
       salaryDay: current.salaryDay,
+      currency: current.currency,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
       trackingStartedAt: current.trackingStartedAt,

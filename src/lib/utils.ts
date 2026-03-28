@@ -10,3 +10,26 @@ export function formatMoney(value: number) {
     maximumFractionDigits: 2,
   });
 }
+
+export function getCurrencySymbol(currency: "BYN" | "EUR" | "USD" | "RUB" | "UAH") {
+  switch (currency) {
+    case "EUR":
+      return "€";
+    case "USD":
+      return "$";
+    case "RUB":
+      return "₽";
+    case "UAH":
+      return "₴";
+    case "BYN":
+    default:
+      return "BYN";
+  }
+}
+
+export function formatMoneyWithCurrency(
+  value: number,
+  currency: "BYN" | "EUR" | "USD" | "RUB" | "UAH"
+) {
+  return `${formatMoney(value)} ${getCurrencySymbol(currency)}`;
+}

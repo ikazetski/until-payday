@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Info, Pencil, Plus, X } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
 import { BottomSheet } from "@/components/BottomSheet";
+import type { CurrencyCode } from "@/hooks/useFinanceStore";
 
 type FixedExpense = {
   id: string;
@@ -14,8 +15,13 @@ type SettingsSheetProps = {
   onClose: () => void;
   monthlyBudget: number;
   salaryDay: number;
+  currency: CurrencyCode;
   fixedExpenses: FixedExpense[];
-  onUpdateSettings: (monthlyBudget: number, salaryDay: number) => void;
+  onUpdateSettings: (
+    monthlyBudget: number,
+    salaryDay: number,
+    currency: CurrencyCode
+  ) => void;
   onAddFixed: (name: string, amount: number) => void;
   onUpdateFixed: (id: string, name: string, amount: number) => void;
   onRemoveFixed: (id: string) => void;

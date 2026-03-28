@@ -207,7 +207,7 @@ const Index = () => {
 
           <div
             className={cn(
-              "kpi-card mt-5",
+              "kpi-card mt-5 flex min-h-[430px] flex-col",
               isWeeklyOverBudget && "kpi-card-warning"
             )}
           >
@@ -273,7 +273,7 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="mt-4 border-t border-white/10 pt-3">
+            <div className="mt-auto border-t border-white/10 pt-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-white/40">Прогресс недели</span>
                 <span className="text-sm font-semibold text-white/70">
@@ -306,7 +306,7 @@ const Index = () => {
 
           <div
             className={cn(
-              "kpi-card mt-5",
+              "kpi-card mt-5 flex min-h-[430px] flex-col",
               isMonthlyOverBudget && "kpi-card-warning"
             )}
           >
@@ -365,7 +365,7 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="mt-4 border-t border-white/10 pt-3">
+            <div className="mt-auto border-t border-white/10 pt-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-white/40">Прогресс периода</span>
                 <span className="text-sm font-semibold text-white/70">

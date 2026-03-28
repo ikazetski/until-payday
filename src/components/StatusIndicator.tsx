@@ -1,10 +1,12 @@
-import { formatMoney } from "@/lib/utils";
+import { formatMoneyWithCurrency } from "@/lib/utils";
+import type { CurrencyCode } from "@/hooks/useFinanceStore";
 
 type Status = "green" | "yellow" | "red";
 
 type StatusIndicatorProps = {
   status: Status;
   savings?: number;
+  currency: CurrencyCode;
 };
 
 const statusConfig = {
@@ -31,6 +33,7 @@ const statusConfig = {
 export function StatusIndicator({
   status,
   savings = 0,
+  currency,
 }: StatusIndicatorProps) {
   const config = statusConfig[status];
 
@@ -53,7 +56,7 @@ export function StatusIndicator({
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Отклонение: {savings > 0 ? "+" : ""}
-          {formatMoney(savings)} BYN
+          {formatMoneyWithCurrency(savings, currency)}
         </p>
       </div>
     </div>
