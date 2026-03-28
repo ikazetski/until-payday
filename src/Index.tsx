@@ -3,7 +3,12 @@ import { Settings, Plus, Wallet, CalendarDays } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
-import { cn, formatMoney } from "@/lib/utils";
+import {
+  cn,
+  formatMoney,
+  formatMoneyWithCurrency,
+  getCurrencySymbol,
+} from "@/lib/utils";
 import { useFinanceStore } from "@/hooks/useFinanceStore";
 import { StatusIndicator } from "@/components/StatusIndicator";
 import { QuickActions } from "@/components/QuickActions";
@@ -17,6 +22,7 @@ import { HistoryScreen } from "@/components/HistoryScreen";
 const Index = () => {
   const store = useFinanceStore();
 
+  const currencySymbol = getCurrencySymbol(store.currency);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [customExpenseModalOpen, setCustomExpenseModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -95,22 +101,15 @@ const Index = () => {
   }, []);
 
   const cycleExpenses = useMemo(() => {
-    const nextSalaryDate = store.nextSalaryDate;
-    const previousSalaryDate = new Date(
-      nextSalaryDate.getFullYear(),
-      nextSalaryDate.getMonth(),
-      nextSalaryDate.getDate()
-    );
-    previousSalaryDate.setMonth(previousSalaryDate.getMonth() - 1);
+  const nextSalaryDate = store.nextSalaryDate;
+  const trackingStartedAt = new Date(store.trackingStartedAt).getTime();
 
-    return store.recentExpenses.filter((expense) => {
-      const expenseDate = new Date(expense.createdAt).getTime();
-      return (
-        expenseDate >= new Date(store.trackingStartedAt).getTime() &&
-        expenseDate < nextSalaryDate.getTime()
-      );
-    });
-  }, [store.recentExpenses, store.nextSalaryDate, store.trackingStartedAt]);
+  return store.recentExpenses.filter((expense) => {
+    const expenseDate = new Date(expense.createdAt).getTime();
+
+    return expenseDate >= trackingStartedAt && expenseDate < nextSalaryDate.getTime();
+  });
+}, [store.recentExpenses, store.nextSalaryDate, store.trackingStartedAt]);
 
   const weekExpenses = useMemo(() => {
     const weekStart = store.currentWeekStart.getTime();
@@ -173,6 +172,7 @@ const Index = () => {
         <HistoryScreen
           expenses={store.recentExpenses}
           monthlyBudget={store.monthlyBudget}
+          currency={store.currency}
         />
         <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
       </>
@@ -203,7 +203,11 @@ const Index = () => {
         className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="min-w-full snap-start">
-          <StatusIndicator status={store.weeklyStatus} savings={store.weeklySavings} />
+          <StatusIndicator
+          status={store.weeklyStatus}
+          savings={store.weeklySavings}
+          currency={store.currency}
+         />
 
           <div
             className={cn(
@@ -217,7 +221,7 @@ const Index = () => {
               {formatMoney(store.weeklyRemaining)}
             </p>
 
-            <p className="mt-1 text-sm font-medium text-white/50">BYN</p>
+            <p className="mt-1 text-sm font-medium text-white/50">{currencySymbol}</p>
 
             <div className="mt-3 flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5 text-white/40" />
@@ -302,7 +306,11 @@ const Index = () => {
         </div>
 
         <div className="min-w-full snap-start">
-          <StatusIndicator status={store.status} savings={store.savings} />
+          <StatusIndicator
+          status={store.status}
+          savings={store.savings}
+          currency={store.currency}
+          />
 
           <div
             className={cn(
@@ -316,7 +324,7 @@ const Index = () => {
               {formatMoney(store.remaining)}
             </p>
 
-            <p className="mt-1 text-sm font-medium text-white/50">BYN</p>
+            <p className="mt-1 text-sm font-medium text-white/50">{currencySymbol}</p>
 
             <div className="mt-3 flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5 text-white/40" />
@@ -431,14 +439,14 @@ const Index = () => {
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Фикс. расходы</span>
           <span className="text-sm font-semibold">
-            {formatMoney(store.fixedTotal)} BYN
+            {formatMoneyWithCurrency(store.fixedTotal, store.currency)}
           </span>
         </div>
 
         <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
           <span className="text-sm text-muted-foreground">Всего потрачено</span>
           <span className="text-sm font-semibold">
-            {formatMoney(store.totalSpentCore + store.fixedTotal)} BYN
+            {formatMoneyWithCurrency(store.totalSpentCore + store.fixedTotal,store.currency)}
           </span>
         </div>
 
@@ -450,8 +458,9 @@ const Index = () => {
 
       <div className="mt-5">
         <RecentTransactions
-          expenses={currentPeriodExpenses}
-          periodTitle={currentPeriodTitle}
+        expenses={currentPeriodExpenses}
+        periodTitle={currentPeriodTitle}
+        currency={store.currency}
         />
       </div>
 
@@ -472,6 +481,7 @@ const Index = () => {
         onClose={() => setSettingsOpen(false)}
         monthlyBudget={store.monthlyBudget}
         salaryDay={store.salaryDay}
+        currency={store.currency}
         fixedExpenses={store.fixedExpenses}
         onUpdateSettings={store.updateSettings}
         onAddFixed={store.addFixedExpense}
@@ -483,7 +493,7 @@ const Index = () => {
         <div className="fixed bottom-20 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-lg">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm">
-              Расход {formatMoney(undoExpense.amount)} BYN добавлен
+              Расход {formatMoneyWithCurrency(undoExpense.amount, store.currency)} добавлен
             </span>
 
             <button

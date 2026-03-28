@@ -93,6 +93,7 @@ export function SettingsSheet({
   onClose,
   monthlyBudget,
   salaryDay,
+  currency,
   fixedExpenses,
   onUpdateSettings,
   onAddFixed,
@@ -102,6 +103,7 @@ export function SettingsSheet({
   const [budgetValue, setBudgetValue] = useState(String(monthlyBudget));
   const [selectedMonthOffset, setSelectedMonthOffset] = useState<0 | 1>(0);
   const [selectedDay, setSelectedDay] = useState(1);
+  const [currencyValue, setCurrencyValue] = useState<CurrencyCode>(currency);
 
   const [fixedName, setFixedName] = useState("");
   const [fixedAmount, setFixedAmount] = useState("");
@@ -116,6 +118,7 @@ export function SettingsSheet({
       setBudgetValue(String(monthlyBudget));
       setSelectedMonthOffset(initial.monthOffset as 0 | 1);
       setSelectedDay(initial.day);
+      setCurrencyValue(currency);
     }
   }, [open, monthlyBudget, salaryDay]);
 
@@ -131,6 +134,7 @@ export function SettingsSheet({
   useEffect(() => {
     if (selectedDay > daysInSelectedMonth) {
       setSelectedDay(daysInSelectedMonth);
+      setCurrencyValue(currency);
     }
   }, [selectedDay, daysInSelectedMonth]);
 
@@ -152,7 +156,7 @@ export function SettingsSheet({
 
     if (selectedDate < today) return;
 
-    onUpdateSettings(parsedBudget, selectedDay);
+    onUpdateSettings(parsedBudget, selectedDay, currencyValue);
     onClose();
   };
 
@@ -200,7 +204,7 @@ export function SettingsSheet({
         </button>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
         <h3 className="mb-3 text-sm font-semibold text-gray-900">
           Основные параметры
         </h3>
@@ -217,6 +221,21 @@ export function SettingsSheet({
             onChange={(e) => setBudgetValue(e.target.value)}
             className="block w-full min-w-0 max-w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none"
           />
+        </label>
+
+        <label className="mb-3 block min-w-0">
+          <span className="mb-1 block text-sm text-gray-600">Валюта</span>
+          <select
+            value={currencyValue}
+            onChange={(e) => setCurrencyValue(e.target.value as CurrencyCode)}
+            className="block w-full min-w-0 max-w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none"
+          >
+            <option value="BYN">BYN</option>
+            <option value="EUR">€ Euro</option>
+            <option value="USD">$ USD</option>
+            <option value="RUB">₽ RUB</option>
+            <option value="UAH">₴ UAH</option>
+          </select>
         </label>
 
         <div className="block min-w-0">
