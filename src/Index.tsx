@@ -162,10 +162,7 @@ const Index = () => {
 
   const isMonthlyOverBudget = store.remaining < 0;
 
-  const monthTodayRemaining = Math.max(
-  0,
-  Math.min(store.remaining, store.dailyBudget - store.spentToday)
-  );
+  const monthTodayRemaining = store.todayAvailable;
 
 const isWeeklyOverBudget = store.weeklyRemaining < 0;
 const weekSpendable = Math.max(0, store.weeklyRemaining);
@@ -245,12 +242,14 @@ const weekSpendable = Math.max(0, store.weeklyRemaining);
                 </p>
               </div>
 
-              <div className="flex items-center justify-between text-sm text-indigo-100/90">
-                <span>{store.weeklyRemaining < 0 ? "Перерасход" : "До конца недели"}</span>
-                <span>
-                {store.weeklyRemaining > 0 ? "+" : ""}
-                {formatMoney(store.weeklyRemaining)}
-                </span>
+              <div>
+                <p className="text-xs font-medium text-white/50">
+                  {store.weeklyRemaining < 0 ? "Перерасход" : "До конца недели"}
+                </p>
+                <p className="text-2xl font-bold text-white">
+                  {store.weeklyRemaining > 0 ? "+" : ""}
+                  {formatMoney(store.weeklyRemaining)}
+                </p>
               </div>
 
               <div>
@@ -339,8 +338,9 @@ const weekSpendable = Math.max(0, store.weeklyRemaining);
               </div>
 
               <div>
-                <p className="text-xs font-medium text-white/50">
-                  {monthTodayRemaining < 0 ? "Перерасход" : "На сегодня"}
+                <p className="text-xs font-medium text-white/50">На сегодня</p>
+                <p className="text-2xl font-bold text-white">
+                  +{formatMoney(monthTodayRemaining)}
                 </p>
                 <p
                   className={cn(

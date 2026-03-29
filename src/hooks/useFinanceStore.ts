@@ -46,6 +46,7 @@ type FinanceStore = {
   daysLeft: number;
   dailyBudget: number;
   spentToday: number;
+  todayAvailable: number;
   savings: number;
   fixedTotal: number;
   totalSpentCore: number;
@@ -262,10 +263,11 @@ function calculateDerived(data: PersistedData) {
     .filter((expense) => isSameDay(expense.createdAt, today))
     .reduce((sum, expense) => sum + expense.amount, 0);
 
-  let budgetAtStartOfDay = data.monthlyBudget;
+    let budgetAtStartOfDay = data.monthlyBudget;
   let cursor = startOfDay(effectiveTrackingStart);
   let dailyBudget = 0;
   let monthlyCarryover = 0;
+  let monthlyCarryoverBeforeToday = 0;
   let weeklyCarryover = 0;
 
   let weeklyBudget = 0;
@@ -301,7 +303,9 @@ function calculateDerived(data: PersistedData) {
     }
 
     if (isPastDay) {
-      monthlyCarryover += plannedForDay - spentThisDay;
+      const diff = plannedForDay - spentThisDay;
+      monthlyCarryover += diff;
+      monthlyCarryoverBeforeToday += diff;
     } else {
       monthlyCarryover += Math.min(0, plannedForDay - spentThisDay);
     }
@@ -336,6 +340,14 @@ function calculateDerived(data: PersistedData) {
 
   const weeklyRemaining = weeklyBudget - weeklySpent;
 
+  const todayAvailable = Math.max(
+    0,
+    Math.min(
+      remaining,
+      dailyBudget + monthlyCarryoverBeforeToday - spentToday
+    )
+  );
+
   let status: Status = "green";
   const todayRemaining = dailyBudget - spentToday;
 
@@ -358,6 +370,7 @@ function calculateDerived(data: PersistedData) {
     daysLeft,
     dailyBudget: roundMoney(dailyBudget),
     spentToday: roundMoney(spentToday),
+    todayAvailable: roundMoney(todayAvailable),
     savings: roundMoney(monthlyCarryover),
     fixedTotal: roundMoney(fixedTotal),
     totalSpentCore: roundMoney(totalSpentCore),

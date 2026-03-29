@@ -135,18 +135,16 @@ function buildWeeklyGroups(
   const trackingStart = startOfDay(new Date(trackingStartedAt));
 
   for (const expense of expenses) {
-    const expenseDate = new Date(expense.createdAt);
+    const expenseDate = startOfDay(new Date(expense.createdAt));
     const weekStart = getWeekStart(expenseDate);
     const weekEnd = getWeekEnd(expenseDate);
     const key = weekStart.toISOString();
 
     if (!grouped.has(key)) {
-      const cycleStart = getMaxDate(
-        getPreviousSalaryDateFrom(weekStart, salaryDay),
-        trackingStart
-      );
+      const cycleStart = getPreviousSalaryDateFrom(expenseDate, salaryDay);
+      const effectiveCycleStart = getMaxDate(cycleStart, trackingStart);
 
-      const nextSalaryDate = getNextSalaryDateFrom(weekStart, salaryDay);
+      const nextSalaryDate = getNextSalaryDateFrom(expenseDate, salaryDay);
       const cycleEnd = startOfDay(
         new Date(
           nextSalaryDate.getFullYear(),
@@ -155,24 +153,25 @@ function buildWeeklyGroups(
         )
       );
 
+      const effectiveWeekStart = getMaxDate(weekStart, effectiveCycleStart);
       const weekBudgetEnd = getMinDate(weekEnd, cycleEnd);
 
       const spentBeforeWeek = expenses
         .filter((item) => {
           const itemDate = startOfDay(new Date(item.createdAt));
           return (
-            itemDate.getTime() >= cycleStart.getTime() &&
-            itemDate.getTime() < weekStart.getTime()
+            itemDate.getTime() >= effectiveCycleStart.getTime() &&
+            itemDate.getTime() < effectiveWeekStart.getTime()
           );
         })
         .reduce((sum, item) => sum + item.amount, 0);
 
       const remainingAtWeekStart = monthlyBudget - spentBeforeWeek;
-      const daysToCycleEnd = countInclusiveDays(weekStart, cycleEnd);
-      const weekDaysInScope = countInclusiveDays(weekStart, weekBudgetEnd);
+      const daysToCycleEnd = countInclusiveDays(effectiveWeekStart, cycleEnd);
+      const weekDaysInScope = countInclusiveDays(effectiveWeekStart, weekBudgetEnd);
 
       const limit =
-        daysToCycleEnd > 0
+        daysToCycleEnd > 0 && weekDaysInScope > 0
           ? roundMoney((remainingAtWeekStart / daysToCycleEnd) * weekDaysInScope)
           : 0;
 
@@ -222,11 +221,7 @@ function buildMonthlyGroups(
   const today = new Date();
   const trackingStart = startOfDay(new Date(trackingStartedAt));
 
-  const currentCycleStart = getMaxDate(
-    getPreviousSalaryDateFrom(today, salaryDay),
-    trackingStart
-  );
-
+  const currentCycleStart = getPreviousSalaryDateFrom(today, salaryDay);
   const currentNextSalaryDate = getNextSalaryDateFrom(today, salaryDay);
   const currentCycleEnd = startOfDay(
     new Date(
@@ -241,9 +236,7 @@ function buildMonthlyGroups(
   for (const expense of expenses) {
     const expenseDate = startOfDay(new Date(expense.createdAt));
 
-    const rawCycleStart = getPreviousSalaryDateFrom(expenseDate, salaryDay);
-    const cycleStart = getMaxDate(rawCycleStart, trackingStart);
-
+    const cycleStart = getPreviousSalaryDateFrom(expenseDate, salaryDay);
     const nextSalaryDate = getNextSalaryDateFrom(expenseDate, salaryDay);
     const cycleEnd = startOfDay(
       new Date(
@@ -256,19 +249,11 @@ function buildMonthlyGroups(
     const key = `${cycleStart.toISOString()}_${cycleEnd.toISOString()}`;
 
     if (!grouped.has(key)) {
-      const fullCycleDays = countInclusiveDays(rawCycleStart, cycleEnd);
-      const trackedCycleDays = countInclusiveDays(cycleStart, cycleEnd);
-
-      const limit =
-        rawCycleStart.getTime() === cycleStart.getTime()
-          ? monthlyBudget
-          : fullCycleDays > 0
-          ? roundMoney((monthlyBudget / fullCycleDays) * trackedCycleDays)
-          : monthlyBudget;
+      const visibleStart = getMaxDate(cycleStart, trackingStart);
 
       grouped.set(key, {
         id: key,
-        title: `${format(cycleStart, "d MMM", { locale: ru })} – ${format(
+        title: `${format(visibleStart, "d MMM", { locale: ru })} – ${format(
           cycleEnd,
           "d MMM",
           { locale: ru }
@@ -276,7 +261,7 @@ function buildMonthlyGroups(
         subtitle: key === currentCycleKey ? "Текущий период" : undefined,
         expenses: [],
         total: 0,
-        limit,
+        limit: monthlyBudget,
         delta: 0,
       });
     }
@@ -295,7 +280,10 @@ function buildMonthlyGroups(
       total: roundMoney(group.total),
       delta: roundMoney(group.limit - group.total),
     }))
-    .sort((a, b) => new Date(b.id.split("_")[0]).getTime() - new Date(a.id.split("_")[0]).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.id.split("_")[0]).getTime() - new Date(a.id.split("_")[0]).getTime()
+    );
 }
 
 function roundMoney(value: number) {
@@ -417,9 +405,9 @@ export function HistoryScreen({
 );
 
   const monthlyGroups = useMemo(
-  () => buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
-  [expenses, monthlyBudget, salaryDay, trackingStartedAt]
-);
+    () => buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
+    [expenses, monthlyBudget, salaryDay, trackingStartedAt]
+  );
 
   const visibleGroups = mode === "weeks" ? weeklyGroups : monthlyGroups;
 
