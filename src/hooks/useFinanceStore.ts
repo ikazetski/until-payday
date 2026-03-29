@@ -258,21 +258,41 @@ function calculateDerived(data: PersistedData) {
     expensesByDay.set(key, roundMoney((expensesByDay.get(key) ?? 0) + expense.amount));
   }
 
-  const spentToday = cycleExpenses
+    const spentToday = cycleExpenses
     .filter((expense) => isSameDay(expense.createdAt, today))
     .reduce((sum, expense) => sum + expense.amount, 0);
 
   let budgetAtStartOfDay = data.monthlyBudget;
   let cursor = startOfDay(effectiveTrackingStart);
-
   let dailyBudget = 0;
   let monthlyCarryover = 0;
   let weeklyCarryover = 0;
+
+  let weeklyBudget = 0;
+  let weeklySpent = 0;
+
+  const lastWeekDayInCycle = getMinDate(
+    currentWeekEnd,
+    startOfDay(
+      new Date(
+        nextSalaryDate.getFullYear(),
+        nextSalaryDate.getMonth(),
+        nextSalaryDate.getDate() - 1
+      )
+    )
+  );
+
+  const effectiveWeekStart = getMaxDate(currentWeekStart, effectiveTrackingStart);
+  const weekDaysInScope = countInclusiveDays(
+    effectiveWeekStart,
+    lastWeekDayInCycle
+  );
 
   while (cursor <= today) {
     const daysRemainingInCycle = Math.max(1, daysBetween(cursor, nextSalaryDate));
     const plannedForDay = budgetAtStartOfDay / daysRemainingInCycle;
     const spentThisDay = expensesByDay.get(toDayKey(cursor)) ?? 0;
+
     const isTodayCursor = toDayKey(cursor) === toDayKey(today);
     const isPastDay = cursor.getTime() < today.getTime();
 
@@ -287,10 +307,12 @@ function calculateDerived(data: PersistedData) {
     }
 
     const isCurrentWeekDay =
-      cursor.getTime() >= currentWeekStart.getTime() &&
-      cursor.getTime() <= currentWeekEnd.getTime();
+      cursor.getTime() >= effectiveWeekStart.getTime() &&
+      cursor.getTime() <= today.getTime();
 
     if (isCurrentWeekDay) {
+      weeklySpent += spentThisDay;
+
       if (isPastDay) {
         weeklyCarryover += plannedForDay - spentThisDay;
       } else {
@@ -298,29 +320,20 @@ function calculateDerived(data: PersistedData) {
       }
     }
 
+    if (
+      toDayKey(cursor) === toDayKey(effectiveWeekStart) &&
+      weekDaysInScope > 0
+    ) {
+      weeklyBudget = plannedForDay * weekDaysInScope;
+    }
+
     budgetAtStartOfDay -= spentThisDay;
+
     cursor = startOfDay(
       new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1)
     );
   }
 
-  const lastWeekDayInCycle = getMinDate(
-    currentWeekEnd,
-    startOfDay(
-      new Date(
-        nextSalaryDate.getFullYear(),
-        nextSalaryDate.getMonth(),
-        nextSalaryDate.getDate() - 1
-      )
-    )
-  );
-
-  const remainingWeekDays = countInclusiveDays(today, lastWeekDayInCycle);
-
-  // Неделя считается только по фактам на текущий момент:
-  // текущий дневной лимит * оставшиеся дни недели.
-  const weeklyBudget = dailyBudget * remainingWeekDays;
-  const weeklySpent = spentToday;
   const weeklyRemaining = weeklyBudget - weeklySpent;
 
   let status: Status = "green";

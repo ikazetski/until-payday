@@ -8,6 +8,8 @@ import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 type HistoryScreenProps = {
   expenses: Expense[];
   monthlyBudget: number;
+  salaryDay: number;
+  trackingStartedAt: string;
   currency: CurrencyCode;
 };
 
@@ -42,10 +44,71 @@ function getWeekEnd(date: Date) {
   );
 }
 
-function getMonthLabel(date: Date) {
-  return format(date, "LLLL yyyy", { locale: ru }).replace(/^./, (s) =>
-    s.toUpperCase()
+function countInclusiveDays(start: Date, end: Date) {
+  const startDate = startOfDay(start);
+  const endDate = startOfDay(end);
+
+  if (startDate.getTime() > endDate.getTime()) {
+    return 0;
+  }
+
+  const DAY_MS = 1000 * 60 * 60 * 24;
+  return Math.floor((endDate.getTime() - startDate.getTime()) / DAY_MS) + 1;
+}
+
+function getSafeDay(year: number, month: number, salaryDay: number) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Math.min(Math.max(salaryDay, 1), daysInMonth);
+}
+
+function getNextSalaryDateFrom(referenceDate: Date, salaryDay: number) {
+  const date = startOfDay(referenceDate);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+
+  const thisMonthDate = new Date(year, month, getSafeDay(year, month, salaryDay));
+
+  if (thisMonthDate > date) {
+    return thisMonthDate;
+  }
+
+  const nextMonthYear = month === 11 ? year + 1 : year;
+  const nextMonth = (month + 1) % 12;
+
+  return new Date(
+    nextMonthYear,
+    nextMonth,
+    getSafeDay(nextMonthYear, nextMonth, salaryDay)
   );
+}
+
+function getPreviousSalaryDateFrom(referenceDate: Date, salaryDay: number) {
+  const date = startOfDay(referenceDate);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+
+  const thisMonthDate = new Date(year, month, getSafeDay(year, month, salaryDay));
+
+  if (thisMonthDate <= date) {
+    return thisMonthDate;
+  }
+
+  const prevMonthYear = month === 0 ? year - 1 : year;
+  const prevMonth = month === 0 ? 11 : month - 1;
+
+  return new Date(
+    prevMonthYear,
+    prevMonth,
+    getSafeDay(prevMonthYear, prevMonth, salaryDay)
+  );
+}
+
+function getMaxDate(a: Date, b: Date) {
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
+function getMinDate(a: Date, b: Date) {
+  return a.getTime() <= b.getTime() ? a : b;
 }
 
 function getDeltaLabel(delta: number, mode: HistoryMode, isCurrentPeriod: boolean) {
@@ -58,12 +121,18 @@ function getDeltaLabel(delta: number, mode: HistoryMode, isCurrentPeriod: boolea
   return isCurrentPeriod ? "Остаток" : "Сэкономлено";
 }
 
-function buildWeeklyGroups(expenses: Expense[], monthlyBudget: number): PeriodGroup[] {
+function buildWeeklyGroups(
+  expenses: Expense[],
+  monthlyBudget: number,
+  salaryDay: number,
+  trackingStartedAt: string
+): PeriodGroup[] {
   if (expenses.length === 0) return [];
 
   const grouped = new Map<string, PeriodGroup>();
   const today = new Date();
   const currentWeekStart = getWeekStart(today).getTime();
+  const trackingStart = startOfDay(new Date(trackingStartedAt));
 
   for (const expense of expenses) {
     const expenseDate = new Date(expense.createdAt);
@@ -72,6 +141,41 @@ function buildWeeklyGroups(expenses: Expense[], monthlyBudget: number): PeriodGr
     const key = weekStart.toISOString();
 
     if (!grouped.has(key)) {
+      const cycleStart = getMaxDate(
+        getPreviousSalaryDateFrom(weekStart, salaryDay),
+        trackingStart
+      );
+
+      const nextSalaryDate = getNextSalaryDateFrom(weekStart, salaryDay);
+      const cycleEnd = startOfDay(
+        new Date(
+          nextSalaryDate.getFullYear(),
+          nextSalaryDate.getMonth(),
+          nextSalaryDate.getDate() - 1
+        )
+      );
+
+      const weekBudgetEnd = getMinDate(weekEnd, cycleEnd);
+
+      const spentBeforeWeek = expenses
+        .filter((item) => {
+          const itemDate = startOfDay(new Date(item.createdAt));
+          return (
+            itemDate.getTime() >= cycleStart.getTime() &&
+            itemDate.getTime() < weekStart.getTime()
+          );
+        })
+        .reduce((sum, item) => sum + item.amount, 0);
+
+      const remainingAtWeekStart = monthlyBudget - spentBeforeWeek;
+      const daysToCycleEnd = countInclusiveDays(weekStart, cycleEnd);
+      const weekDaysInScope = countInclusiveDays(weekStart, weekBudgetEnd);
+
+      const limit =
+        daysToCycleEnd > 0
+          ? roundMoney((remainingAtWeekStart / daysToCycleEnd) * weekDaysInScope)
+          : 0;
+
       const title = `${format(weekStart, "d MMM", { locale: ru })} – ${format(
         weekEnd,
         "d MMM",
@@ -81,11 +185,10 @@ function buildWeeklyGroups(expenses: Expense[], monthlyBudget: number): PeriodGr
       grouped.set(key, {
         id: key,
         title,
-        subtitle:
-          weekStart.getTime() === currentWeekStart ? "Текущая неделя" : undefined,
+        subtitle: weekStart.getTime() === currentWeekStart ? "Текущая неделя" : undefined,
         expenses: [],
         total: 0,
-        limit: roundMoney(monthlyBudget / 4),
+        limit,
         delta: 0,
       });
     }
@@ -95,40 +198,85 @@ function buildWeeklyGroups(expenses: Expense[], monthlyBudget: number): PeriodGr
     group.total += expense.amount;
   }
 
-  const result = Array.from(grouped.values())
+  return Array.from(grouped.values())
     .map((group) => ({
       ...group,
       expenses: group.expenses.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ),
       total: roundMoney(group.total),
       delta: roundMoney(group.limit - group.total),
     }))
     .sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime());
-
-  return result;
 }
 
-function buildMonthlyGroups(expenses: Expense[], monthlyBudget: number): PeriodGroup[] {
+function buildMonthlyGroups(
+  expenses: Expense[],
+  monthlyBudget: number,
+  salaryDay: number,
+  trackingStartedAt: string
+): PeriodGroup[] {
   if (expenses.length === 0) return [];
 
   const grouped = new Map<string, PeriodGroup>();
-  const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const today = new Date();
+  const trackingStart = startOfDay(new Date(trackingStartedAt));
+
+  const currentCycleStart = getMaxDate(
+    getPreviousSalaryDateFrom(today, salaryDay),
+    trackingStart
+  );
+
+  const currentNextSalaryDate = getNextSalaryDateFrom(today, salaryDay);
+  const currentCycleEnd = startOfDay(
+    new Date(
+      currentNextSalaryDate.getFullYear(),
+      currentNextSalaryDate.getMonth(),
+      currentNextSalaryDate.getDate() - 1
+    )
+  );
+
+  const currentCycleKey = `${currentCycleStart.toISOString()}_${currentCycleEnd.toISOString()}`;
 
   for (const expense of expenses) {
-    const expenseDate = new Date(expense.createdAt);
-    const key = `${expenseDate.getFullYear()}-${expenseDate.getMonth()}`;
+    const expenseDate = startOfDay(new Date(expense.createdAt));
+
+    const rawCycleStart = getPreviousSalaryDateFrom(expenseDate, salaryDay);
+    const cycleStart = getMaxDate(rawCycleStart, trackingStart);
+
+    const nextSalaryDate = getNextSalaryDateFrom(expenseDate, salaryDay);
+    const cycleEnd = startOfDay(
+      new Date(
+        nextSalaryDate.getFullYear(),
+        nextSalaryDate.getMonth(),
+        nextSalaryDate.getDate() - 1
+      )
+    );
+
+    const key = `${cycleStart.toISOString()}_${cycleEnd.toISOString()}`;
 
     if (!grouped.has(key)) {
+      const fullCycleDays = countInclusiveDays(rawCycleStart, cycleEnd);
+      const trackedCycleDays = countInclusiveDays(cycleStart, cycleEnd);
+
+      const limit =
+        rawCycleStart.getTime() === cycleStart.getTime()
+          ? monthlyBudget
+          : fullCycleDays > 0
+          ? roundMoney((monthlyBudget / fullCycleDays) * trackedCycleDays)
+          : monthlyBudget;
+
       grouped.set(key, {
         id: key,
-        title: getMonthLabel(expenseDate),
-        subtitle: key === currentMonthKey ? "Текущий месяц" : undefined,
+        title: `${format(cycleStart, "d MMM", { locale: ru })} – ${format(
+          cycleEnd,
+          "d MMM",
+          { locale: ru }
+        )}`,
+        subtitle: key === currentCycleKey ? "Текущий период" : undefined,
         expenses: [],
         total: 0,
-        limit: monthlyBudget,
+        limit,
         delta: 0,
       });
     }
@@ -138,23 +286,16 @@ function buildMonthlyGroups(expenses: Expense[], monthlyBudget: number): PeriodG
     group.total += expense.amount;
   }
 
-  const result = Array.from(grouped.values())
+  return Array.from(grouped.values())
     .map((group) => ({
       ...group,
       expenses: group.expenses.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ),
       total: roundMoney(group.total),
       delta: roundMoney(group.limit - group.total),
     }))
-    .sort((a, b) => {
-      const [aYear, aMonth] = a.id.split("-").map(Number);
-      const [bYear, bMonth] = b.id.split("-").map(Number);
-      return new Date(bYear, bMonth, 1).getTime() - new Date(aYear, aMonth, 1).getTime();
-    });
-
-  return result;
+    .sort((a, b) => new Date(b.id.split("_")[0]).getTime() - new Date(a.id.split("_")[0]).getTime());
 }
 
 function roundMoney(value: number) {
@@ -240,7 +381,7 @@ function HistoryPeriodCard({
                   </div>
 
                   <span className="ml-3 text-sm font-semibold text-gray-900">
-                    −{formatMoneyWithCurrency(group.delta, currency)}
+                    −{formatMoneyWithCurrency(expense.amount, currency)}
                   </span>
                 </div>
               ))}
@@ -264,19 +405,21 @@ function HistoryPeriodCard({
 export function HistoryScreen({
   expenses,
   monthlyBudget,
+  salaryDay,
+  trackingStartedAt,
   currency,
 }: HistoryScreenProps) {
   const [mode, setMode] = useState<HistoryMode>("weeks");
 
   const weeklyGroups = useMemo(
-    () => buildWeeklyGroups(expenses, monthlyBudget),
-    [expenses, monthlyBudget]
-  );
+  () => buildWeeklyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
+  [expenses, monthlyBudget, salaryDay, trackingStartedAt]
+);
 
   const monthlyGroups = useMemo(
-    () => buildMonthlyGroups(expenses, monthlyBudget),
-    [expenses, monthlyBudget]
-  );
+  () => buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
+  [expenses, monthlyBudget, salaryDay, trackingStartedAt]
+);
 
   const visibleGroups = mode === "weeks" ? weeklyGroups : monthlyGroups;
 

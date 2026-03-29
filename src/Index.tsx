@@ -161,18 +161,24 @@ const Index = () => {
   };
 
   const isMonthlyOverBudget = store.remaining < 0;
-  const monthTodayRemaining = store.dailyBudget - store.spentToday;
 
-  const isWeeklyOverBudget = store.weeklyRemaining < 0;
-  const weekTodayRemaining = monthTodayRemaining;
+  const monthTodayRemaining = Math.max(
+  0,
+  Math.min(store.remaining, store.dailyBudget - store.spentToday)
+  );
+
+const isWeeklyOverBudget = store.weeklyRemaining < 0;
+const weekSpendable = Math.max(0, store.weeklyRemaining);
 
   if (activeTab === "history") {
     return (
       <>
         <HistoryScreen
-          expenses={store.recentExpenses}
-          monthlyBudget={store.monthlyBudget}
-          currency={store.currency}
+         expenses={store.recentExpenses}
+         monthlyBudget={store.monthlyBudget}
+         salaryDay={store.salaryDay}
+         trackingStartedAt={store.trackingStartedAt}
+         currency={store.currency}
         />
         <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
       </>
@@ -218,7 +224,7 @@ const Index = () => {
             <p className="mb-1 text-sm font-medium text-white/70">Можно потратить</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
-              {formatMoney(store.weeklyRemaining)}
+              {formatMoney(weekSpendable)}
             </p>
 
             <p className="mt-1 text-sm font-medium text-white/50">{currencySymbol}</p>
@@ -233,25 +239,18 @@ const Index = () => {
 
             <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/15 pt-5">
               <div>
-                <p className="text-xs font-medium text-white/50">Лимит недели</p>
+                <p className="text-xs font-medium text-white/50">Остаток недели</p>
                 <p className="text-2xl font-bold text-white">
-                  {formatMoney(store.weeklyBudget)}
+                  {formatMoney(store.weeklyRemaining)}
                 </p>
               </div>
 
-              <div>
-                <p className="text-xs font-medium text-white/50">
-                  {weekTodayRemaining < 0 ? "Перерасход" : "На сегодня"}
-                </p>
-                <p
-                  className={cn(
-                    "text-2xl font-bold",
-                    weekTodayRemaining < 0 ? "text-red-300" : "text-white"
-                  )}
-                >
-                  {weekTodayRemaining < 0 ? "" : "+"}
-                  {formatMoney(weekTodayRemaining)}
-                </p>
+              <div className="flex items-center justify-between text-sm text-indigo-100/90">
+                <span>{store.weeklyRemaining < 0 ? "Перерасход" : "До конца недели"}</span>
+                <span>
+                {store.weeklyRemaining > 0 ? "+" : ""}
+                {formatMoney(store.weeklyRemaining)}
+                </span>
               </div>
 
               <div>
