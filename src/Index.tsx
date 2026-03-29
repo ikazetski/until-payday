@@ -253,7 +253,7 @@ const weekSpendable = Math.max(0, store.weeklyRemaining);
               </div>
 
               <div>
-                <p className="text-xs font-medium text-white/50">Отклонение</p>
+                <p className="text-xs font-medium text-white/50">По плану</p>
                 <p
                   className={cn(
                     "text-2xl font-bold",
@@ -340,25 +340,17 @@ const weekSpendable = Math.max(0, store.weeklyRemaining);
               <div>
                 <p className="text-xs font-medium text-white/50">На сегодня</p>
                 <p className="text-2xl font-bold text-white">
-                  +{formatMoney(monthTodayRemaining)}
-                </p>
-                <p
-                  className={cn(
-                    "text-2xl font-bold",
-                    monthTodayRemaining < 0 ? "text-red-300" : "text-white"
-                  )}
-                >
-                  {monthTodayRemaining < 0 ? "" : "+"}
-                  {formatMoney(monthTodayRemaining)}
+                  {monthTodayRemaining > 0 ? "+" : ""}
+                  {monthTodayRemaining === 0 ? "0" : formatMoney(monthTodayRemaining)}
                 </p>
                 <p className="mt-0.5 text-[10px] text-white/35">
                   потрачено {formatMoney(store.spentToday)} · лимит{" "}
-                  {formatMoney(store.dailyBudget)}
+                  {monthTodayRemaining === 0 ? "0" : formatMoney(monthTodayRemaining)}
                 </p>
               </div>
 
               <div>
-                <p className="text-xs font-medium text-white/50">Отклонение</p>
+                <p className="text-xs font-medium text-white/50">По плану</p>
                 <p
                   className={cn(
                     "text-2xl font-bold",
