@@ -101,15 +101,23 @@ const Index = () => {
   }, []);
 
   const cycleExpenses = useMemo(() => {
-  const nextSalaryDate = store.nextSalaryDate;
-  const trackingStartedAt = new Date(store.trackingStartedAt).getTime();
+    const nextSalaryDate = store.nextSalaryDate.getTime();
+    const cycleStart = Math.max(
+      new Date(store.previousSalaryDate).getTime(),
+      new Date(store.trackingStartedAt).getTime()
+    );
 
-  return store.recentExpenses.filter((expense) => {
-    const expenseDate = new Date(expense.createdAt).getTime();
+    return store.recentExpenses.filter((expense) => {
+      const expenseDate = new Date(expense.createdAt).getTime();
 
-    return expenseDate >= trackingStartedAt && expenseDate < nextSalaryDate.getTime();
-  });
-}, [store.recentExpenses, store.nextSalaryDate, store.trackingStartedAt]);
+      return expenseDate >= cycleStart && expenseDate < nextSalaryDate;
+    });
+  }, [
+    store.recentExpenses,
+    store.previousSalaryDate,
+    store.nextSalaryDate,
+    store.trackingStartedAt,
+  ]);
 
   const weekExpenses = useMemo(() => {
     const weekStart = store.currentWeekStart.getTime();
@@ -165,7 +173,6 @@ const Index = () => {
   const monthTodayRemaining = store.todayAvailable;
 
 const isWeeklyOverBudget = store.weeklyRemaining < 0;
-const weekSpendable = Math.max(0, store.weeklyRemaining);
 
   if (activeTab === "history") {
     return (
@@ -218,10 +225,10 @@ const weekSpendable = Math.max(0, store.weeklyRemaining);
               isWeeklyOverBudget && "kpi-card-warning"
             )}
           >
-            <p className="mb-1 text-sm font-medium text-white/70">Можно потратить</p>
+            <p className="mb-1 text-sm font-medium text-white/70">Лимит недели</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
-              {formatMoney(weekSpendable)}
+              {formatMoney(store.weeklyBudget)}
             </p>
 
             <p className="mt-1 text-sm font-medium text-white/50">{currencySymbol}</p>
@@ -234,46 +241,39 @@ const weekSpendable = Math.max(0, store.weeklyRemaining);
               </p>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/15 pt-5">
-              <div>
-                <p className="text-xs font-medium text-white/50">Остаток недели</p>
-                <p className="text-2xl font-bold text-white">
-                  {formatMoney(store.weeklyRemaining)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-white/50">
-                  {store.weeklyRemaining < 0 ? "Перерасход" : "До конца недели"}
-                </p>
-                <p className="text-2xl font-bold text-white">
-                  {store.weeklyRemaining > 0 ? "+" : ""}
-                  {formatMoney(store.weeklyRemaining)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-white/50">По плану</p>
-                <p
-                  className={cn(
-                    "text-2xl font-bold",
-                    store.weeklySavings >= 0 ? "text-emerald-300" : "text-red-300"
-                  )}
-                >
-                  {store.weeklySavings > 0 ? "+" : ""}
-                  {formatMoney(store.weeklySavings)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-white/50">
-                  Потрачено сегодня
-                </p>
-                <p className="text-2xl font-bold text-white">
-                  {formatMoney(store.spentToday)}
-                </p>
-              </div>
+            <div className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5">
+            <div>
+              <p className="text-xs font-medium text-white/50">На сегодня</p>
+              <p className="text-2xl font-bold text-white">
+                {store.weeklyTodayAvailable > 0 ? "+" : ""}
+                {store.weeklyTodayAvailable === 0 ? "0" : formatMoney(store.weeklyTodayAvailable)}
+              </p>
+              <p className="mt-0.5 text-[10px] text-white/35">
+                доступно сегодня
+              </p>
             </div>
+
+            <div>
+              <p className="text-xs font-medium text-white/50">По плану</p>
+              <p
+                className={cn(
+                  "text-2xl font-bold",
+                  store.weeklySavings >= 0 ? "text-emerald-300" : "text-red-300"
+                )}
+              >
+                {store.weeklySavings > 0 ? "+" : ""}
+                {formatMoney(store.weeklySavings)}
+              </p>
+              <p className="mt-0.5 text-[10px] text-white/35">по неделе</p>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-white/50">Потрачено сегодня</p>
+              <p className="text-2xl font-bold text-white">
+                {formatMoney(store.spentToday)}
+              </p>
+            </div>
+          </div>
 
             <div className="mt-auto border-t border-white/10 pt-3">
               <div className="mb-2 flex items-center justify-between">

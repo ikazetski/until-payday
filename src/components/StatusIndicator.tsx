@@ -55,7 +55,7 @@ export function StatusIndicator({
           {config.title} {status === "red" ? "⚠️" : ""}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Отклонение: {savings > 0 ? "+" : ""}
+          По плану: {savings > 0 ? "+" : ""}
           {formatMoneyWithCurrency(savings, currency)}
         </p>
       </div>

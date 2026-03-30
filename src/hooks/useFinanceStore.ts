@@ -47,9 +47,11 @@ type FinanceStore = {
   dailyBudget: number;
   spentToday: number;
   todayAvailable: number;
+  weeklyTodayAvailable: number;
   savings: number;
   fixedTotal: number;
   totalSpentCore: number;
+  previousSalaryDate: Date;
   nextSalaryDate: Date;
   status: Status;
 
@@ -267,7 +269,6 @@ function calculateDerived(data: PersistedData) {
   let cursor = startOfDay(effectiveTrackingStart);
   let dailyBudget = 0;
   let monthlyCarryover = 0;
-  let monthlyCarryoverBeforeToday = 0;
   let weeklyCarryover = 0;
 
   let weeklyBudget = 0;
@@ -305,7 +306,6 @@ function calculateDerived(data: PersistedData) {
     if (isPastDay) {
       const diff = plannedForDay - spentThisDay;
       monthlyCarryover += diff;
-      monthlyCarryoverBeforeToday += diff;
     } else {
       monthlyCarryover += Math.min(0, plannedForDay - spentThisDay);
     }
@@ -340,20 +340,22 @@ function calculateDerived(data: PersistedData) {
 
   const weeklyRemaining = weeklyBudget - weeklySpent;
 
-  const todayAvailable = Math.max(
-    0,
-    Math.min(
-      remaining,
-      dailyBudget + monthlyCarryoverBeforeToday - spentToday
-    )
-  );
+  const todayAvailable = Math.max(0, dailyBudget - spentToday);
+
+  const weeklyDaysLeft = countInclusiveDays(today, lastWeekDayInCycle);
+
+  const weeklyRemainingAtStartOfToday = weeklyRemaining + spentToday;
+
+  const weeklyTodayBudget =
+    weeklyDaysLeft > 0 ? weeklyRemainingAtStartOfToday / weeklyDaysLeft : 0;
+
+  const weeklyTodayAvailable = Math.max(0, weeklyTodayBudget - spentToday);
 
   let status: Status = "green";
-  const todayRemaining = dailyBudget - spentToday;
 
   if (remaining < -0.01) {
     status = "red";
-  } else if (todayRemaining < -0.01 || monthlyCarryover < -0.01) {
+  } else if (monthlyCarryover < -0.01) {
     status = "yellow";
   }
 
@@ -361,7 +363,7 @@ function calculateDerived(data: PersistedData) {
 
   if (weeklyRemaining < -0.01) {
     weeklyStatus = "red";
-  } else if (todayRemaining < -0.01 || weeklyCarryover < -0.01) {
+  } else if (weeklyCarryover < -0.01) {
     weeklyStatus = "yellow";
   }
 
@@ -371,9 +373,11 @@ function calculateDerived(data: PersistedData) {
     dailyBudget: roundMoney(dailyBudget),
     spentToday: roundMoney(spentToday),
     todayAvailable: roundMoney(todayAvailable),
+    weeklyTodayAvailable: roundMoney(weeklyTodayAvailable),
     savings: roundMoney(monthlyCarryover),
     fixedTotal: roundMoney(fixedTotal),
     totalSpentCore: roundMoney(totalSpentCore),
+    previousSalaryDate,
     nextSalaryDate,
     status,
 
