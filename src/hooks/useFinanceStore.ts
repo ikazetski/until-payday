@@ -34,6 +34,13 @@ type PersistedData = {
   trackingStartedAt: string;
 };
 
+type SettingsSnapshot = {
+  monthlyBudget: number;
+  salaryDay: number;
+  currency: CurrencyCode;
+  trackingStartedAt: string;
+};
+
 type FinanceStore = {
   monthlyBudget: number;
   salaryDay: number;
@@ -52,6 +59,7 @@ type FinanceStore = {
   fixedTotal: number;
   totalSpentCore: number;
   previousSalaryDate: Date;
+  currentCycleStart: Date;
   nextSalaryDate: Date;
   status: Status;
 
@@ -77,6 +85,7 @@ type FinanceStore = {
     salaryDay: number,
     currency: CurrencyCode
   ) => void;
+  restoreSettings: (snapshot: SettingsSnapshot) => void;
   refreshDerived: () => void;
 };
 
@@ -218,19 +227,6 @@ function getMinDate(a: Date, b: Date) {
   return a.getTime() <= b.getTime() ? a : b;
 }
 
-function isExpenseInCurrentCycle(
-  expense: Expense,
-  previousSalaryDate: Date,
-  nextSalaryDate: Date
-) {
-  const expenseDate = new Date(expense.createdAt).getTime();
-
-  return (
-    expenseDate >= startOfDay(previousSalaryDate).getTime() &&
-    expenseDate < startOfDay(nextSalaryDate).getTime()
-  );
-}
-
 function calculateDerived(data: PersistedData) {
   const today = startOfToday();
   const nextSalaryDate = getNextSalaryDate(data.salaryDay);
@@ -243,12 +239,19 @@ function calculateDerived(data: PersistedData) {
     previousSalaryDate
   );
 
+  const currentCycleStart = effectiveTrackingStart;
+
   const currentWeekStart = getWeekStart(today);
   const currentWeekEnd = getWeekEnd(today);
 
-  const cycleExpenses = data.recentExpenses.filter((expense) =>
-    isExpenseInCurrentCycle(expense, previousSalaryDate, nextSalaryDate)
-  );
+  const cycleStartMs = currentCycleStart.getTime();
+  const cycleEndMs = startOfDay(nextSalaryDate).getTime();
+
+  const cycleExpenses = data.recentExpenses.filter((expense) => {
+    const expenseDate = new Date(expense.createdAt).getTime();
+
+    return expenseDate >= cycleStartMs && expenseDate < cycleEndMs;
+  });
 
   const totalSpentCore = cycleExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const fixedTotal = data.fixedExpenses.reduce((sum, item) => sum + item.amount, 0);
@@ -378,6 +381,7 @@ function calculateDerived(data: PersistedData) {
     fixedTotal: roundMoney(fixedTotal),
     totalSpentCore: roundMoney(totalSpentCore),
     previousSalaryDate,
+    currentCycleStart,
     nextSalaryDate,
     status,
 
@@ -589,6 +593,25 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     set({
       ...updatedData,
       ...calculateDerived(updatedData),
+    });
+  },
+
+  restoreSettings: (snapshot) => {
+    const current = get();
+
+    const restoredData: PersistedData = {
+      monthlyBudget: roundMoney(snapshot.monthlyBudget),
+      salaryDay: snapshot.salaryDay,
+      currency: snapshot.currency,
+      fixedExpenses: current.fixedExpenses,
+      recentExpenses: current.recentExpenses,
+      trackingStartedAt: snapshot.trackingStartedAt,
+    };
+
+    saveData(restoredData);
+    set({
+      ...restoredData,
+      ...calculateDerived(restoredData),
     });
   },
 

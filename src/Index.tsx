@@ -33,13 +33,28 @@ const Index = () => {
     amount: number;
   } | null>(null);
 
+  const [settingsUndo, setSettingsUndo] = useState<{
+    monthlyBudget: number;
+    salaryDay: number;
+    currency: typeof store.currency;
+    trackingStartedAt: string;
+  } | null>(null);
+
   const undoTimerRef = useRef<number | null>(null);
+  const settingsUndoTimerRef = useRef<number | null>(null);
   const carouselRef = useRef<HTMLDivElement | null>(null);
 
   const clearUndoTimer = () => {
     if (undoTimerRef.current) {
       window.clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
+    }
+  };
+
+  const clearSettingsUndoTimer = () => {
+    if (settingsUndoTimerRef.current) {
+      window.clearTimeout(settingsUndoTimerRef.current);
+      settingsUndoTimerRef.current = null;
     }
   };
 
@@ -58,23 +73,57 @@ const Index = () => {
   };
 
   const handleExpenseAdd = (
-    amount: number,
-    category: "food" | "sport" | "fuel" | "entertainment" | "other"
-  ) => {
-    store.addExpense(amount, category);
-    showUndoForLastExpense();
+  amount: number,
+  category: "food" | "sport" | "fuel" | "entertainment" | "other"
+) => {
+  store.addExpense(amount, category);
+  showUndoForLastExpense();
+};
+
+const handleSettingsSave = (
+  monthlyBudget: number,
+  salaryDay: number,
+  currency: typeof store.currency
+) => {
+  const snapshot = {
+    monthlyBudget: store.monthlyBudget,
+    salaryDay: store.salaryDay,
+    currency: store.currency,
+    trackingStartedAt: store.trackingStartedAt,
   };
 
-  const handleUndoExpense = () => {
-    if (!undoExpense) return;
+  store.updateSettings(monthlyBudget, salaryDay, currency);
+  setSettingsUndo(snapshot);
 
-    store.removeExpense(undoExpense.id);
-    setUndoExpense(null);
-    clearUndoTimer();
-  };
+  clearSettingsUndoTimer();
+
+  settingsUndoTimerRef.current = window.setTimeout(() => {
+    setSettingsUndo(null);
+    settingsUndoTimerRef.current = null;
+  }, 5000);
+};
+
+const handleUndoSettings = () => {
+  if (!settingsUndo) return;
+
+  store.restoreSettings(settingsUndo);
+  setSettingsUndo(null);
+  clearSettingsUndoTimer();
+};
+
+const handleUndoExpense = () => {
+  if (!undoExpense) return;
+
+  store.removeExpense(undoExpense.id);
+  setUndoExpense(null);
+  clearUndoTimer();
+};
 
   useEffect(() => {
-    return () => clearUndoTimer();
+    return () => {
+      clearUndoTimer();
+      clearSettingsUndoTimer();
+    };
   }, []);
 
   useEffect(() => {
@@ -101,23 +150,15 @@ const Index = () => {
   }, []);
 
   const cycleExpenses = useMemo(() => {
+    const cycleStart = store.currentCycleStart.getTime();
     const nextSalaryDate = store.nextSalaryDate.getTime();
-    const cycleStart = Math.max(
-      new Date(store.previousSalaryDate).getTime(),
-      new Date(store.trackingStartedAt).getTime()
-    );
 
     return store.recentExpenses.filter((expense) => {
       const expenseDate = new Date(expense.createdAt).getTime();
 
       return expenseDate >= cycleStart && expenseDate < nextSalaryDate;
     });
-  }, [
-    store.recentExpenses,
-    store.previousSalaryDate,
-    store.nextSalaryDate,
-    store.trackingStartedAt,
-  ]);
+  }, [store.recentExpenses, store.currentCycleStart, store.nextSalaryDate]);
 
   const weekExpenses = useMemo(() => {
     const weekStart = store.currentWeekStart.getTime();
@@ -474,7 +515,7 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
         salaryDay={store.salaryDay}
         currency={store.currency}
         fixedExpenses={store.fixedExpenses}
-        onUpdateSettings={store.updateSettings}
+        onUpdateSettings={handleSettingsSave}
         onAddFixed={store.addFixedExpense}
         onUpdateFixed={store.updateFixedExpense}
         onRemoveFixed={store.removeFixedExpense}
@@ -489,6 +530,23 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
 
             <button
               onClick={handleUndoExpense}
+              className="shrink-0 rounded-xl bg-white/10 px-3 py-1.5 text-sm font-semibold text-white"
+            >
+              Отменить
+            </button>
+          </div>
+        </div>
+      )}
+
+      {settingsUndo && (
+        <div className="fixed bottom-36 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm">
+              Новый лимит применён. В расчёт входят только сегодняшние расходы.
+            </span>
+
+            <button
+              onClick={handleUndoSettings}
               className="shrink-0 rounded-xl bg-white/10 px-3 py-1.5 text-sm font-semibold text-white"
             >
               Отменить

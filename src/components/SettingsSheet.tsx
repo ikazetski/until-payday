@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Info, Pencil, Plus, X } from "lucide-react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoneyWithCurrency } from "@/lib/utils";
 import { BottomSheet } from "@/components/BottomSheet";
 import type { CurrencyCode } from "@/hooks/useFinanceStore";
 
@@ -120,7 +120,7 @@ export function SettingsSheet({
       setSelectedDay(initial.day);
       setCurrencyValue(currency);
     }
-  }, [open, monthlyBudget, salaryDay]);
+  }, [open, monthlyBudget, salaryDay, currency]);
 
   const selectedMonthMeta = monthOptions[selectedMonthOffset];
   const daysInSelectedMonth = new Date(
@@ -134,7 +134,6 @@ export function SettingsSheet({
   useEffect(() => {
     if (selectedDay > daysInSelectedMonth) {
       setSelectedDay(daysInSelectedMonth);
-      setCurrencyValue(currency);
     }
   }, [selectedDay, daysInSelectedMonth]);
 
@@ -295,7 +294,7 @@ export function SettingsSheet({
             Фиксированные расходы
           </h3>
           <span className="shrink-0 text-xs text-gray-500">
-            Всего: {formatMoney(totalFixed)} BYN
+            Всего: {formatMoneyWithCurrency(totalFixed, currency)}
           </span>
         </div>
 
@@ -363,7 +362,7 @@ export function SettingsSheet({
                     {item.name}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {formatMoney(item.amount)} BYN
+                    {formatMoneyWithCurrency(item.amount, currency)}
                   </p>
                 </div>
 
