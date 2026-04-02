@@ -267,10 +267,10 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
               isWeeklyOverBudget && "kpi-card-warning"
             )}
           >
-            <p className="mb-1 text-sm font-medium text-white/70">Лимит недели</p>
+            <p className="mb-1 text-sm font-medium text-white/70">Остаток недели</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
-              {formatMoney(store.weeklyBudget)}
+              {formatMoney(store.weeklyRemaining)}
             </p>
 
             <p className="mt-1 text-sm font-medium text-white/50">{currencySymbol}</p>
@@ -381,12 +381,16 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
 
               <div>
                 <p className="text-xs font-medium text-white/50">На сегодня</p>
+
                 <p className="text-2xl font-bold text-white">
                   {monthTodayAvailable > 0 ? "+" : ""}
                   {monthTodayAvailable === 0 ? "0" : formatMoney(monthTodayAvailable)}
+                </p>
 
-                  потрачено {formatMoney(store.spentToday)} · лимит{" "}
-                  {monthTodayPlan === 0 ? "0" : formatMoney(monthTodayPlan)}
+                <p className="mt-0.5 text-[10px] leading-4 text-white/35">
+                  потрачено {formatMoney(store.spentToday)}
+                  <br />
+                  лимит {monthTodayPlan === 0 ? "0" : formatMoney(monthTodayPlan)}
                 </p>
               </div>
 
