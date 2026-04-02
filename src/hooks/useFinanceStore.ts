@@ -1,4 +1,18 @@
 import { create } from "zustand";
+import {
+  addDays,
+  countInclusiveDays,
+  filterExpensesByRange,
+  getCurrentWeekRange,
+  getCycleRange,
+  getPreviousSalaryDateFrom,
+  getWeekEnd,
+  getWeekStart,
+  makeRange,
+  roundMoney,
+  startOfDay,
+  sumExpenses,
+} from "@/lib/finance";
 
 export type ExpenseCategory =
   | "food"
@@ -92,15 +106,6 @@ type FinanceStore = {
 const STORAGE_KEY = "until-payday-finance";
 const DAY_MS = 1000 * 60 * 60 * 24;
 
-function roundMoney(value: number) {
-  const rounded = Math.round(value * 100) / 100;
-  return Object.is(rounded, -0) ? 0 : rounded;
-}
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
 function startOfToday() {
   return startOfDay(new Date());
 }
@@ -112,250 +117,161 @@ function toDayKey(date: Date) {
   )}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function daysBetween(start: Date, end: Date) {
-  const startDate = startOfDay(start);
-  const endDate = startOfDay(end);
-
-  return Math.max(
-    0,
-    Math.round((endDate.getTime() - startDate.getTime()) / DAY_MS)
-  );
-}
-
-function countInclusiveDays(start: Date, end: Date) {
-  const startDate = startOfDay(start);
-  const endDate = startOfDay(end);
-
-  if (startDate.getTime() > endDate.getTime()) {
-    return 0;
-  }
-
-  return Math.floor((endDate.getTime() - startDate.getTime()) / DAY_MS) + 1;
-}
-
-function getSafeDay(year: number, month: number, salaryDay: number) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  return Math.min(Math.max(salaryDay, 1), daysInMonth);
-}
-
-function getNextSalaryDate(salaryDay: number) {
-  const today = startOfToday();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-
-  const thisMonthDate = new Date(year, month, getSafeDay(year, month, salaryDay));
-
-  if (thisMonthDate > today) {
-    return thisMonthDate;
-  }
-
-  const nextMonthYear = month === 11 ? year + 1 : year;
-  const nextMonth = (month + 1) % 12;
-
-  return new Date(
-    nextMonthYear,
-    nextMonth,
-    getSafeDay(nextMonthYear, nextMonth, salaryDay)
-  );
-}
-
-function getPreviousSalaryDate(salaryDay: number) {
-  const today = startOfToday();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-
-  const thisMonthDate = new Date(year, month, getSafeDay(year, month, salaryDay));
-
-  if (thisMonthDate <= today) {
-    return thisMonthDate;
-  }
-
-  const prevMonthYear = month === 0 ? year - 1 : year;
-  const prevMonth = month === 0 ? 11 : month - 1;
-
-  return new Date(
-    prevMonthYear,
-    prevMonth,
-    getSafeDay(prevMonthYear, prevMonth, salaryDay)
-  );
-}
-
-function getDaysLeft(nextSalaryDate: Date) {
-  const today = startOfToday();
-  const diffMs = nextSalaryDate.getTime() - today.getTime();
-  const days = Math.ceil(diffMs / DAY_MS);
-
-  return Math.max(days, 1);
-}
-
-function isSameDay(dateString: string, compareDate: Date) {
-  const date = new Date(dateString);
-
-  return (
-    date.getFullYear() === compareDate.getFullYear() &&
-    date.getMonth() === compareDate.getMonth() &&
-    date.getDate() === compareDate.getDate()
-  );
-}
-
-function getWeekStart(date: Date) {
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-
-  return startOfDay(
-    new Date(date.getFullYear(), date.getMonth(), date.getDate() + diff)
-  );
-}
-
-function getWeekEnd(date: Date) {
-  const weekStart = getWeekStart(date);
-
-  return startOfDay(
-    new Date(
-      weekStart.getFullYear(),
-      weekStart.getMonth(),
-      weekStart.getDate() + 6
-    )
-  );
-}
-
-function getMaxDate(a: Date, b: Date) {
-  return a.getTime() >= b.getTime() ? a : b;
-}
-
-function getMinDate(a: Date, b: Date) {
-  return a.getTime() <= b.getTime() ? a : b;
-}
-
 function calculateDerived(data: PersistedData) {
   const today = startOfToday();
-  const nextSalaryDate = getNextSalaryDate(data.salaryDay);
-  const previousSalaryDate = getPreviousSalaryDate(data.salaryDay);
-  const daysLeft = getDaysLeft(nextSalaryDate);
 
-  const trackingStartedAtDate = startOfDay(new Date(data.trackingStartedAt));
-  const effectiveTrackingStart = getMaxDate(
-    trackingStartedAtDate,
-    previousSalaryDate
+  const cycleRange = getCycleRange(
+    today,
+    data.salaryDay,
+    data.trackingStartedAt
   );
 
-  const currentCycleStart = effectiveTrackingStart;
+  const weekRange = getCurrentWeekRange(today, cycleRange);
 
-  const currentWeekStart = getWeekStart(today);
-  const currentWeekEnd = getWeekEnd(today);
+  const cycleExpenses = filterExpensesByRange(data.recentExpenses, cycleRange);
+  const totalSpentCore = sumExpenses(cycleExpenses);
 
-  const cycleStartMs = currentCycleStart.getTime();
-  const cycleEndMs = startOfDay(nextSalaryDate).getTime();
+  const fixedTotal = roundMoney(
+    data.fixedExpenses.reduce((sum, item) => sum + item.amount, 0)
+  );
 
-  const cycleExpenses = data.recentExpenses.filter((expense) => {
-    const expenseDate = new Date(expense.createdAt).getTime();
+  const remaining = roundMoney(data.monthlyBudget - totalSpentCore);
 
-    return expenseDate >= cycleStartMs && expenseDate < cycleEndMs;
-  });
-
-  const totalSpentCore = cycleExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const fixedTotal = data.fixedExpenses.reduce((sum, item) => sum + item.amount, 0);
-  const remaining = data.monthlyBudget - totalSpentCore;
+  const todayRange = makeRange(today, addDays(today, 1));
+  const todayExpenses = filterExpensesByRange(cycleExpenses, todayRange);
+  const spentToday = sumExpenses(todayExpenses);
 
   const expensesByDay = new Map<string, number>();
-
   for (const expense of cycleExpenses) {
-    const key = toDayKey(new Date(expense.createdAt));
-    expensesByDay.set(key, roundMoney((expensesByDay.get(key) ?? 0) + expense.amount));
-  }
-
-    const spentToday = cycleExpenses
-    .filter((expense) => isSameDay(expense.createdAt, today))
-    .reduce((sum, expense) => sum + expense.amount, 0);
-
-    let budgetAtStartOfDay = data.monthlyBudget;
-  let cursor = startOfDay(effectiveTrackingStart);
-  let dailyBudget = 0;
-  let monthlyCarryover = 0;
-  let weeklyCarryover = 0;
-
-  let weeklyBudget = 0;
-  let weeklySpent = 0;
-
-  const lastWeekDayInCycle = getMinDate(
-    currentWeekEnd,
-    startOfDay(
-      new Date(
-        nextSalaryDate.getFullYear(),
-        nextSalaryDate.getMonth(),
-        nextSalaryDate.getDate() - 1
-      )
-    )
-  );
-
-  const effectiveWeekStart = getMaxDate(currentWeekStart, effectiveTrackingStart);
-  const weekDaysInScope = countInclusiveDays(
-    effectiveWeekStart,
-    lastWeekDayInCycle
-  );
-
-  while (cursor <= today) {
-    const daysRemainingInCycle = Math.max(1, daysBetween(cursor, nextSalaryDate));
-    const plannedForDay = budgetAtStartOfDay / daysRemainingInCycle;
-    const spentThisDay = expensesByDay.get(toDayKey(cursor)) ?? 0;
-
-    const isTodayCursor = toDayKey(cursor) === toDayKey(today);
-    const isPastDay = cursor.getTime() < today.getTime();
-
-    if (isTodayCursor) {
-      dailyBudget = plannedForDay;
-    }
-
-    if (isPastDay) {
-      const diff = plannedForDay - spentThisDay;
-      monthlyCarryover += diff;
-    } else {
-      monthlyCarryover += Math.min(0, plannedForDay - spentThisDay);
-    }
-
-    const isCurrentWeekDay =
-      cursor.getTime() >= effectiveWeekStart.getTime() &&
-      cursor.getTime() <= today.getTime();
-
-    if (isCurrentWeekDay) {
-      weeklySpent += spentThisDay;
-
-      if (isPastDay) {
-        weeklyCarryover += plannedForDay - spentThisDay;
-      } else {
-        weeklyCarryover += Math.min(0, plannedForDay - spentThisDay);
-      }
-    }
-
-    if (
-      toDayKey(cursor) === toDayKey(effectiveWeekStart) &&
-      weekDaysInScope > 0
-    ) {
-      weeklyBudget = plannedForDay * weekDaysInScope;
-    }
-
-    budgetAtStartOfDay -= spentThisDay;
-
-    cursor = startOfDay(
-      new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1)
+    const key = toDayKey(startOfDay(new Date(expense.createdAt)));
+    expensesByDay.set(
+      key,
+      roundMoney((expensesByDay.get(key) ?? 0) + expense.amount)
     );
   }
 
-  const weeklyRemaining = weeklyBudget - weeklySpent;
+  let cursor = cycleRange.start;
+  let budgetAtStartOfDay = data.monthlyBudget;
+  let dailyBudget = 0;
+  let monthlyCarryover = 0;
 
-  const todayAvailable = Math.max(0, dailyBudget - spentToday);
+  while (cursor.getTime() <= today.getTime()) {
+    const key = toDayKey(cursor);
+    const spentThisDay = expensesByDay.get(key) ?? 0;
 
-  const weeklyDaysLeft = countInclusiveDays(today, lastWeekDayInCycle);
+    const daysRemainingInCycle = Math.max(
+      1,
+      Math.ceil((cycleRange.endExclusive.getTime() - cursor.getTime()) / DAY_MS)
+    );
 
-  const weeklyRemainingAtStartOfToday = weeklyRemaining + spentToday;
+    const plannedForDay = budgetAtStartOfDay / daysRemainingInCycle;
+    const isPastDay = cursor.getTime() < today.getTime();
 
-  const weeklyTodayBudget =
-    weeklyDaysLeft > 0 ? weeklyRemainingAtStartOfToday / weeklyDaysLeft : 0;
+    if (cursor.getTime() === today.getTime()) {
+      dailyBudget = plannedForDay;
+    }
 
-  const weeklyTodayAvailable = Math.max(0, weeklyTodayBudget - spentToday);
+    monthlyCarryover += isPastDay
+      ? plannedForDay - spentThisDay
+      : Math.min(0, plannedForDay - spentThisDay);
+
+    budgetAtStartOfDay -= spentThisDay;
+    cursor = addDays(cursor, 1);
+  }
+
+  let weeklyBudget = 0;
+  let weeklySpent = 0;
+  let weeklyCarryover = 0;
+  let weeklyTodayAvailable = 0;
+
+  let currentWeekStart = getWeekStart(today);
+  let currentWeekEnd = getWeekEnd(today);
+
+  if (weekRange) {
+    currentWeekStart = weekRange.start;
+    currentWeekEnd = addDays(weekRange.endExclusive, -1);
+
+    const weekExpenses = filterExpensesByRange(cycleExpenses, weekRange);
+    weeklySpent = sumExpenses(weekExpenses);
+
+    const spentBeforeWeek = sumExpenses(
+      cycleExpenses.filter(
+        (expense) =>
+          new Date(expense.createdAt).getTime() < weekRange.start.getTime()
+      )
+    );
+
+    const remainingAtWeekStart = data.monthlyBudget - spentBeforeWeek;
+
+    const weekEndInclusive = addDays(weekRange.endExclusive, -1);
+    const cycleEndInclusive = addDays(cycleRange.endExclusive, -1);
+
+    const daysToCycleEnd = countInclusiveDays(
+      weekRange.start,
+      cycleEndInclusive
+    );
+    const weekDaysInScope = countInclusiveDays(
+      weekRange.start,
+      weekEndInclusive
+    );
+
+    weeklyBudget =
+      daysToCycleEnd > 0 && weekDaysInScope > 0
+        ? roundMoney((remainingAtWeekStart / daysToCycleEnd) * weekDaysInScope)
+        : 0;
+
+    const weeklyRemaining = weeklyBudget - weeklySpent;
+    const weeklyDaysLeft = countInclusiveDays(today, weekEndInclusive);
+    const weeklyRemainingAtStartOfToday = weeklyRemaining + spentToday;
+
+    const weeklyTodayBudget =
+      weeklyDaysLeft > 0
+        ? weeklyRemainingAtStartOfToday / weeklyDaysLeft
+        : 0;
+
+    weeklyTodayAvailable = roundMoney(weeklyTodayBudget - spentToday);
+
+    const weekDayExpenses = new Map<string, number>();
+    for (const expense of weekExpenses) {
+      const key = toDayKey(startOfDay(new Date(expense.createdAt)));
+      weekDayExpenses.set(
+        key,
+        roundMoney((weekDayExpenses.get(key) ?? 0) + expense.amount)
+      );
+    }
+
+    let weeklyBudgetCursor = weekRange.start;
+    let budgetAtWeekStart = remainingAtWeekStart;
+
+    while (weeklyBudgetCursor.getTime() <= today.getTime()) {
+      const key = toDayKey(weeklyBudgetCursor);
+      const spentThisDay = weekDayExpenses.get(key) ?? 0;
+
+      const daysRemainingInWeekScope = countInclusiveDays(
+        weeklyBudgetCursor,
+        weekEndInclusive
+      );
+
+      const plannedForDay =
+        daysRemainingInWeekScope > 0
+          ? budgetAtWeekStart / daysRemainingInWeekScope
+          : 0;
+
+      const isPastDay = weeklyBudgetCursor.getTime() < today.getTime();
+
+      weeklyCarryover += isPastDay
+        ? plannedForDay - spentThisDay
+        : Math.min(0, plannedForDay - spentThisDay);
+
+      budgetAtWeekStart -= spentThisDay;
+      weeklyBudgetCursor = addDays(weeklyBudgetCursor, 1);
+    }
+  }
+
+  const todayAvailable = roundMoney(dailyBudget - spentToday);
+  const weeklyRemaining = roundMoney(weeklyBudget - weeklySpent);
 
   let status: Status = "green";
-
   if (remaining < -0.01) {
     status = "red";
   } else if (monthlyCarryover < -0.01) {
@@ -363,12 +279,16 @@ function calculateDerived(data: PersistedData) {
   }
 
   let weeklyStatus: Status = "green";
-
   if (weeklyRemaining < -0.01) {
     weeklyStatus = "red";
   } else if (weeklyCarryover < -0.01) {
     weeklyStatus = "yellow";
   }
+
+  const daysLeft = Math.max(
+    1,
+    Math.ceil((cycleRange.endExclusive.getTime() - today.getTime()) / DAY_MS)
+  );
 
   return {
     remaining: roundMoney(remaining),
@@ -378,15 +298,14 @@ function calculateDerived(data: PersistedData) {
     todayAvailable: roundMoney(todayAvailable),
     weeklyTodayAvailable: roundMoney(weeklyTodayAvailable),
     savings: roundMoney(monthlyCarryover),
-    fixedTotal: roundMoney(fixedTotal),
+    fixedTotal,
     totalSpentCore: roundMoney(totalSpentCore),
-    previousSalaryDate,
-    currentCycleStart,
-    nextSalaryDate,
+    previousSalaryDate: getPreviousSalaryDateFrom(today, data.salaryDay),
+    currentCycleStart: cycleRange.start,
+    nextSalaryDate: cycleRange.endExclusive,
     status,
-
     weeklyBudget: roundMoney(weeklyBudget),
-    weeklyRemaining: roundMoney(weeklyRemaining),
+    weeklyRemaining,
     weeklySavings: roundMoney(weeklyCarryover),
     weeklySpent: roundMoney(weeklySpent),
     weeklyStatus,

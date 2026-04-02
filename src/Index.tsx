@@ -211,7 +211,8 @@ const handleUndoExpense = () => {
 
   const isMonthlyOverBudget = store.remaining < 0;
 
-  const monthTodayRemaining = store.todayAvailable;
+  const monthTodayAvailable = store.todayAvailable;
+  const monthTodayPlan = store.dailyBudget;
 
 const isWeeklyOverBudget = store.weeklyRemaining < 0;
 
@@ -381,12 +382,11 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
               <div>
                 <p className="text-xs font-medium text-white/50">На сегодня</p>
                 <p className="text-2xl font-bold text-white">
-                  {monthTodayRemaining > 0 ? "+" : ""}
-                  {monthTodayRemaining === 0 ? "0" : formatMoney(monthTodayRemaining)}
-                </p>
-                <p className="mt-0.5 text-[10px] text-white/35">
+                  {monthTodayAvailable > 0 ? "+" : ""}
+                  {monthTodayAvailable === 0 ? "0" : formatMoney(monthTodayAvailable)}
+
                   потрачено {formatMoney(store.spentToday)} · лимит{" "}
-                  {monthTodayRemaining === 0 ? "0" : formatMoney(monthTodayRemaining)}
+                  {monthTodayPlan === 0 ? "0" : formatMoney(monthTodayPlan)}
                 </p>
               </div>
 
