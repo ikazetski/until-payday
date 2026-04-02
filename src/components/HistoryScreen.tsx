@@ -1,7 +1,4 @@
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
-
 import { formatMoneyWithCurrency, } from "@/lib/utils";
 import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 import { buildMonthlyGroups, buildWeeklyGroups } from "@/lib/finance";
@@ -26,92 +23,6 @@ type PeriodGroup = {
   delta: number;
 };
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function getWeekStart(date: Date) {
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  return startOfDay(
-    new Date(date.getFullYear(), date.getMonth(), date.getDate() + diff)
-  );
-}
-
-function getWeekEnd(date: Date) {
-  const start = getWeekStart(date);
-  return startOfDay(
-    new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6)
-  );
-}
-
-function countInclusiveDays(start: Date, end: Date) {
-  const startDate = startOfDay(start);
-  const endDate = startOfDay(end);
-
-  if (startDate.getTime() > endDate.getTime()) {
-    return 0;
-  }
-
-  const DAY_MS = 1000 * 60 * 60 * 24;
-  return Math.floor((endDate.getTime() - startDate.getTime()) / DAY_MS) + 1;
-}
-
-function getSafeDay(year: number, month: number, salaryDay: number) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  return Math.min(Math.max(salaryDay, 1), daysInMonth);
-}
-
-function getNextSalaryDateFrom(referenceDate: Date, salaryDay: number) {
-  const date = startOfDay(referenceDate);
-  const year = date.getFullYear();
-  const month = date.getMonth();
-
-  const thisMonthDate = new Date(year, month, getSafeDay(year, month, salaryDay));
-
-  if (thisMonthDate > date) {
-    return thisMonthDate;
-  }
-
-  const nextMonthYear = month === 11 ? year + 1 : year;
-  const nextMonth = (month + 1) % 12;
-
-  return new Date(
-    nextMonthYear,
-    nextMonth,
-    getSafeDay(nextMonthYear, nextMonth, salaryDay)
-  );
-}
-
-function getPreviousSalaryDateFrom(referenceDate: Date, salaryDay: number) {
-  const date = startOfDay(referenceDate);
-  const year = date.getFullYear();
-  const month = date.getMonth();
-
-  const thisMonthDate = new Date(year, month, getSafeDay(year, month, salaryDay));
-
-  if (thisMonthDate <= date) {
-    return thisMonthDate;
-  }
-
-  const prevMonthYear = month === 0 ? year - 1 : year;
-  const prevMonth = month === 0 ? 11 : month - 1;
-
-  return new Date(
-    prevMonthYear,
-    prevMonth,
-    getSafeDay(prevMonthYear, prevMonth, salaryDay)
-  );
-}
-
-function getMaxDate(a: Date, b: Date) {
-  return a.getTime() >= b.getTime() ? a : b;
-}
-
-function getMinDate(a: Date, b: Date) {
-  return a.getTime() <= b.getTime() ? a : b;
-}
-
 function getDeltaLabel(delta: number, mode: HistoryMode, isCurrentPeriod: boolean) {
   if (delta < 0) return "Перерасход";
 
@@ -120,11 +31,6 @@ function getDeltaLabel(delta: number, mode: HistoryMode, isCurrentPeriod: boolea
   }
 
   return isCurrentPeriod ? "Остаток" : "Сэкономлено";
-}
-
-function roundMoney(value: number) {
-  const rounded = Math.round(value * 100) / 100;
-  return Object.is(rounded, -0) ? 0 : rounded;
 }
 
 function HistoryPeriodCard({
