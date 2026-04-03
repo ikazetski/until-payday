@@ -232,19 +232,31 @@ export function buildMonthlyGroups(
   now = new Date()
 ): HistoryGroup[] {
   const today = startOfDay(now);
+  const trackingStart = startOfDay(new Date(trackingStartedAt));
   const groups: HistoryGroup[] = [];
 
   let cursor = today;
+  let previousCycleStartTime: number | null = null;
 
   for (let i = 0; i < 6; i += 1) {
     const cycleRange = getCycleRangeForDate(cursor, salaryDay, trackingStartedAt);
     const cycleStart = cycleRange.start;
     const cycleEndInclusive = addDays(cycleRange.endExclusive, -1);
 
+    if (previousCycleStartTime === cycleStart.getTime()) {
+      break;
+    }
+
+    if (cycleStart.getTime() < trackingStart.getTime()) {
+      break;
+    }
+
     const cycleExpenses = filterExpensesByRange(expenses, cycleRange).sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+
+    const total = sumExpenses(cycleExpenses);
 
     groups.push({
       id: `cycle-${cycleStart.toISOString()}`,
@@ -254,14 +266,19 @@ export function buildMonthlyGroups(
         { locale: ru }
       )}`,
       subtitle: i === 0 ? "Текущий период" : undefined,
-      total: sumExpenses(cycleExpenses),
+      total,
       limit: roundMoney(monthlyBudget),
-      delta: roundMoney(monthlyBudget - sumExpenses(cycleExpenses)),
+      delta: roundMoney(monthlyBudget - total),
       expenses: cycleExpenses,
       isCurrent: i === 0,
     });
 
+    previousCycleStartTime = cycleStart.getTime();
     cursor = addDays(cycleStart, -1);
+
+    if (cursor.getTime() < trackingStart.getTime()) {
+      break;
+    }
   }
 
   return groups;

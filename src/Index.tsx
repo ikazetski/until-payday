@@ -221,7 +221,7 @@ const monthPlanTitle = monthPlanValue >= 0 ? "Сэкономлено" : "Пер�
 const monthPlanDisplay = `${monthPlanValue > 0 ? "+" : ""}${formatMoney(monthPlanValue)}`;
 
 const cardClassName =
-  "rounded-[32px] bg-gradient-to-br from-[#7B6DFF] to-[#4E5BFF] px-6 pt-6 pb-5 shadow-lg min-h-[340px]";
+  "rounded-[32px] bg-gradient-to-br from-[#7B6DFF] to-[#4E5BFF] px-6 pt-6 pb-5 shadow-lg min-h-[380px]";
 
  if (activeTab === "history") {
   return (
@@ -269,7 +269,7 @@ const cardClassName =
           period="week"
          />
 
-          <div className={cardClassName}>
+          <div className={cn(cardClassName, "mt-4")}>
             <p className="mb-1 text-sm font-medium text-white/70">Остаток недели</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
@@ -287,7 +287,7 @@ const cardClassName =
             </div>
 
             <div className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5">
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-medium text-white/50">На сегодня</p>
               <p className="text-2xl font-bold text-white">
                 {store.weeklyTodayAvailable > 0 ? "+" : ""}
@@ -298,7 +298,7 @@ const cardClassName =
               </p>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-medium text-white/50">{weekPlanTitle}</p>
               <p
                 className={cn(
@@ -311,7 +311,7 @@ const cardClassName =
               <p className="mt-0.5 text-[10px] text-white/35">по неделе</p>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-medium text-white/50">Потрачено</p>
               <p className="text-2xl font-bold text-white">
                 {formatMoney(store.spentToday)}
@@ -359,7 +359,7 @@ const cardClassName =
           period="month"
           />
 
-          <div className={cardClassName}>
+          <div className={cn(cardClassName, "mt-4")}>
             <p className="mb-1 text-sm font-medium text-white/70">Остаток периода</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
