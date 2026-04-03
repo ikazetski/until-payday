@@ -209,27 +209,34 @@ const handleUndoExpense = () => {
     }
   };
 
-  const isMonthlyOverBudget = store.remaining < 0;
-
-  const monthTodayAvailable = store.todayAvailable;
-  const monthTodayPlan = store.dailyBudget;
-
+const isMonthlyOverBudget = store.remaining < 0;
 const isWeeklyOverBudget = store.weeklyRemaining < 0;
 
-  if (activeTab === "history") {
-    return (
-      <>
-        <HistoryScreen
-         expenses={store.recentExpenses}
-         monthlyBudget={store.monthlyBudget}
-         salaryDay={store.salaryDay}
-         trackingStartedAt={store.trackingStartedAt}
-         currency={store.currency}
-        />
-        <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
-      </>
-    );
-  }
+const weekPlanValue = store.weeklySavings;
+const weekPlanTitle = weekPlanValue >= 0 ? "Сэкономлено" : "Перерасход";
+const weekPlanDisplay = `${weekPlanValue > 0 ? "+" : ""}${formatMoney(weekPlanValue)}`;
+
+const monthPlanValue = store.savings;
+const monthPlanTitle = monthPlanValue >= 0 ? "Сэкономлено" : "Перерасход";
+const monthPlanDisplay = `${monthPlanValue > 0 ? "+" : ""}${formatMoney(monthPlanValue)}`;
+
+const cardClassName =
+  "rounded-[32px] bg-gradient-to-br from-[#7B6DFF] to-[#4E5BFF] px-6 pt-6 pb-5 shadow-lg min-h-[340px]";
+
+ if (activeTab === "history") {
+  return (
+    <>
+      <HistoryScreen
+        expenses={store.recentExpenses}
+        monthlyBudget={store.monthlyBudget}
+        salaryDay={store.salaryDay}
+        trackingStartedAt={store.trackingStartedAt}
+        currency={store.currency}
+      />
+      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+    </>
+  );
+ }
 
   return (
     <div className="min-h-screen bg-background px-5 pt-safe pb-24 max-w-md mx-auto">
@@ -259,14 +266,10 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
           status={store.weeklyStatus}
           savings={store.weeklySavings}
           currency={store.currency}
+          period="week"
          />
 
-          <div
-            className={cn(
-              "kpi-card mt-5 flex min-h-[430px] flex-col",
-              isWeeklyOverBudget && "kpi-card-warning"
-            )}
-          >
+          <div className={cardClassName}>
             <p className="mb-1 text-sm font-medium text-white/70">Остаток недели</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
@@ -296,23 +299,26 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
             </div>
 
             <div>
-              <p className="text-xs font-medium text-white/50">По плану</p>
+              <p className="text-xs font-medium text-white/50">{weekPlanTitle}</p>
               <p
                 className={cn(
                   "text-2xl font-bold",
                   store.weeklySavings >= 0 ? "text-emerald-300" : "text-red-300"
                 )}
               >
-                {store.weeklySavings > 0 ? "+" : ""}
-                {formatMoney(store.weeklySavings)}
+                {weekPlanDisplay}
               </p>
               <p className="mt-0.5 text-[10px] text-white/35">по неделе</p>
             </div>
 
             <div>
-              <p className="text-xs font-medium text-white/50">Потрачено сегодня</p>
+              <p className="text-xs font-medium text-white/50">Потрачено</p>
               <p className="text-2xl font-bold text-white">
                 {formatMoney(store.spentToday)}
+              </p>
+
+              <p className="mt-0.5 text-[10px] leading-4 text-white/35">
+                сегодня
               </p>
             </div>
           </div>
@@ -350,15 +356,11 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
           status={store.status}
           savings={store.savings}
           currency={store.currency}
+          period="month"
           />
 
-          <div
-            className={cn(
-              "kpi-card mt-5 flex min-h-[430px] flex-col",
-              isMonthlyOverBudget && "kpi-card-warning"
-            )}
-          >
-            <p className="mb-1 text-sm font-medium text-white/70">Осталось</p>
+          <div className={cardClassName}>
+            <p className="mb-1 text-sm font-medium text-white/70">Остаток периода</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
               {formatMoney(store.remaining)}
@@ -373,39 +375,24 @@ const isWeeklyOverBudget = store.weeklyRemaining < 0;
               </p>
             </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5">
-              <div>
-                <p className="text-xs font-medium text-white/50">Дней</p>
-                <p className="text-2xl font-bold text-white">{store.daysLeft}</p>
-              </div>
+            <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/15 pt-5">
+             <div>
+               <p className="text-xs font-medium text-white/50">Дней</p>
+               <p className="text-2xl font-bold text-white">{store.daysLeft}</p>
+               <p className="mt-0.5 text-[10px] text-white/35">до зарплаты</p>
+             </div>
 
-              <div>
-                <p className="text-xs font-medium text-white/50">На сегодня</p>
-
-                <p className="text-2xl font-bold text-white">
-                  {monthTodayAvailable > 0 ? "+" : ""}
-                  {monthTodayAvailable === 0 ? "0" : formatMoney(monthTodayAvailable)}
-                </p>
-
-                <p className="mt-0.5 text-[10px] leading-4 text-white/35">
-                  потрачено {formatMoney(store.spentToday)}
-                  <br />
-                  лимит {monthTodayPlan === 0 ? "0" : formatMoney(monthTodayPlan)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-white/50">По плану</p>
-                <p
-                  className={cn(
-                    "text-2xl font-bold",
-                    store.savings >= 0 ? "text-emerald-300" : "text-red-300"
-                  )}
+             <div>
+               <p className="text-xs font-medium text-white/50">{monthPlanTitle}</p>
+               <p
+                 className={cn(
+                   "text-2xl font-bold",
+                   store.savings >= 0 ? "text-emerald-300" : "text-red-300"
+                 )}
                 >
-                  {store.savings > 0 ? "+" : ""}
-                  {formatMoney(store.savings)}
+                  {monthPlanDisplay}
                 </p>
-                <p className="mt-0.5 text-[10px] text-white/35">от плана</p>
+                <p className="mt-0.5 text-[10px] text-white/35">по периоду</p>
               </div>
             </div>
 

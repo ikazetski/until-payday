@@ -7,6 +7,7 @@ type StatusIndicatorProps = {
   status: Status;
   savings?: number;
   currency: CurrencyCode;
+  period: "week" | "month";
 };
 
 const statusConfig = {
@@ -34,6 +35,7 @@ export function StatusIndicator({
   status,
   savings = 0,
   currency,
+  period,
 }: StatusIndicatorProps) {
   const config = statusConfig[status];
 
@@ -55,7 +57,9 @@ export function StatusIndicator({
           {config.title} {status === "red" ? "⚠️" : ""}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          По плану: {savings > 0 ? "+" : ""}
+          {savings >= 0 ? "Сэкономлено" : "Перерасход"}{" "}
+          {period === "week" ? "по неделе" : "по периоду"}:{" "}
+          {savings > 0 ? "+" : ""}
           {formatMoneyWithCurrency(savings, currency)}
         </p>
       </div>
