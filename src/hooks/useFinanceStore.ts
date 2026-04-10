@@ -92,6 +92,7 @@ type FinanceStore = {
   ) => void;
   restoreSettings: (snapshot: SettingsSnapshot) => void;
   refreshDerived: () => void;
+  startNewCycle: () => void;
 };
 
 const STORAGE_KEY = "until-payday-finance";
@@ -282,24 +283,24 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     });
   },
 
-    updateSettings: (monthlyBudget, salaryDay, currency) => {
-    const current = get();
+  updateSettings: (monthlyBudget, salaryDay, currency) => {
+  const current = get();
 
-    const updatedData: PersistedData = {
-      monthlyBudget: roundMoney(monthlyBudget),
-      salaryDay,
-      currency,
-      fixedExpenses: current.fixedExpenses,
-      recentExpenses: current.recentExpenses,
-      trackingStartedAt: startOfToday().toISOString(),
-    };
+  const updatedData: PersistedData = {
+    monthlyBudget: roundMoney(monthlyBudget),
+    salaryDay,
+    currency,
+    fixedExpenses: current.fixedExpenses,
+    recentExpenses: current.recentExpenses,
+    trackingStartedAt: current.trackingStartedAt,
+  };
 
-    saveData(updatedData);
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
-  },
+  saveData(updatedData);
+  set({
+    ...updatedData,
+    ...calculateFinance(updatedData),
+  });
+},
 
   restoreSettings: (snapshot) => {
     const current = get();
@@ -335,6 +336,26 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     set({
       ...currentData,
       ...calculateFinance(currentData),
+    });
+  },
+
+  startNewCycle: () => {
+    const current = get();
+
+    const updatedData: PersistedData = {
+      monthlyBudget: current.monthlyBudget,
+      salaryDay: current.salaryDay,
+      currency: current.currency,
+      fixedExpenses: current.fixedExpenses,
+      recentExpenses: current.recentExpenses,
+      trackingStartedAt: startOfDay(new Date()).toISOString(),
+    };
+
+    saveData(updatedData);
+
+    set({
+      ...updatedData,
+      ...calculateFinance(updatedData),
     });
   },
 }));

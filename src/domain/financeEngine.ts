@@ -167,10 +167,11 @@ function sumSavings(days: DaySnapshot[]) {
 
 function buildPeriodMetrics(
   cycleRange: DateRange,
-  cycleDays: DaySnapshot[]
+  cycleDays: DaySnapshot[],
+  monthlyBudget: number
 ): PeriodMetrics {
   const totalSpent = sumSpent(cycleDays);
-  const budget = cycleDays.length > 0 ? sumPlanned(cycleDays) : 0;
+  const budget = roundMoney(monthlyBudget);
   const remaining = roundMoney(budget - totalSpent);
   const savings = sumSavings(cycleDays);
 
@@ -241,7 +242,11 @@ export function calculateFinance(input: FinanceInput): DerivedFinance {
     today
   );
 
-  const period = buildPeriodMetrics(cycleRange, cycleDays);
+  const period = buildPeriodMetrics(
+  cycleRange,
+  cycleDays,
+  input.monthlyBudget
+  );
   const week = buildWeekMetrics(weekRange, cycleDays);
 
   const todaySnapshot = cycleDays.find((day) => day.isToday);
