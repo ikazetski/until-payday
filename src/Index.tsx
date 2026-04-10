@@ -161,18 +161,18 @@ const handleUndoExpense = () => {
   }, [store.recentExpenses, store.currentCycleStart, store.nextSalaryDate]);
 
   const weekExpenses = useMemo(() => {
-    const weekStart = store.currentWeekStart.getTime();
-    const weekEnd = new Date(
-      store.currentWeekEnd.getFullYear(),
-      store.currentWeekEnd.getMonth(),
-      store.currentWeekEnd.getDate() + 1
-    ).getTime();
+  const start = store.currentWeekStart.getTime();
+  const endExclusive = new Date(
+    store.currentWeekEnd.getFullYear(),
+    store.currentWeekEnd.getMonth(),
+    store.currentWeekEnd.getDate() + 1
+  ).getTime();
 
-    return store.recentExpenses.filter((expense) => {
-      const expenseTime = new Date(expense.createdAt).getTime();
-      return expenseTime >= weekStart && expenseTime < weekEnd;
-    });
-  }, [store.recentExpenses, store.currentWeekStart, store.currentWeekEnd]);
+  return store.recentExpenses.filter((expense) => {
+    const expenseTime = new Date(expense.createdAt).getTime();
+    return expenseTime >= start && expenseTime < endExclusive;
+  });
+}, [store.recentExpenses, store.currentWeekStart, store.currentWeekEnd]);
 
   const currentPeriodExpenses = activeCard === 0 ? weekExpenses : cycleExpenses;
   const currentPeriodTitle =
@@ -209,9 +209,6 @@ const handleUndoExpense = () => {
     }
   };
 
-const isMonthlyOverBudget = store.remaining < 0;
-const isWeeklyOverBudget = store.weeklyRemaining < 0;
-
 const weekPlanValue = store.weeklySavings;
 const weekPlanTitle = weekPlanValue >= 0 ? "Сэкономлено" : "Перерасход";
 const weekPlanDisplay = `${weekPlanValue > 0 ? "+" : ""}${formatMoney(weekPlanValue)}`;
@@ -221,7 +218,39 @@ const monthPlanTitle = monthPlanValue >= 0 ? "Сэкономлено" : "Пер�
 const monthPlanDisplay = `${monthPlanValue > 0 ? "+" : ""}${formatMoney(monthPlanValue)}`;
 
 const cardClassName =
-  "rounded-[32px] bg-gradient-to-br from-[#7B6DFF] to-[#4E5BFF] px-6 pt-6 pb-5 shadow-lg min-h-[380px]";
+  "rounded-[32px] bg-gradient-to-br px-6 pt-6 pb-5 shadow-lg min-h-[380px]";
+
+  const toneMap = {
+    green: {
+      card: "from-[#7B6DFF] to-[#4E5BFF]",
+      value: "text-white",
+      muted: "text-white/70",
+      progressTrack: "bg-white/15",
+      progressFill: "bg-white/70",
+    },
+    yellow: {
+      card: "from-[#F7C948] to-[#F59E0B]",
+      value: "text-white",
+      muted: "text-white/80",
+      progressTrack: "bg-white/20",
+      progressFill: "bg-white",
+    },
+    red: {
+      card: "from-[#FF6B6B] to-[#E53935]",
+      value: "text-white",
+      muted: "text-white/80",
+      progressTrack: "bg-white/20",
+      progressFill: "bg-white",
+    },
+  } as const;
+
+  const weeklyTone = toneMap[store.weeklyStatus];
+  const monthlyTone = toneMap[store.status];
+
+  const getProgressWidth = (spent: number, budget: number) => {
+  if (budget <= 0) return spent > 0 ? 100 : 0;
+  return Math.min(100, Math.max(0, (spent / budget) * 100));
+  };
 
  if (activeTab === "history") {
   return (
@@ -269,7 +298,7 @@ const cardClassName =
           period="week"
          />
 
-          <div className={cn(cardClassName, "mt-4")}>
+          <div className={cn(cardClassName, weeklyTone.card)}>
             <p className="mb-1 text-sm font-medium text-white/70">Остаток недели</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
@@ -333,17 +362,9 @@ const cardClassName =
 
               <div className="h-2 overflow-hidden rounded-full bg-white/15">
                 <div
-                  className={cn(
-                    "h-full rounded-full",
-                    isWeeklyOverBudget ? "bg-red-300" : "bg-white"
-                  )}
+                  className={cn("h-full rounded-full", weeklyTone.progressFill)}
                   style={{
-                    width: `${Math.min(
-                      100,
-                      store.weeklyBudget > 0
-                        ? (store.weeklySpent / store.weeklyBudget) * 100
-                        : 0
-                    )}%`,
+                     width: `${getProgressWidth(store.weeklySpent, store.weeklyBudget)}%`,
                   }}
                 />
               </div>
@@ -359,7 +380,7 @@ const cardClassName =
           period="month"
           />
 
-          <div className={cn(cardClassName, "mt-4")}>
+          <div className={cn(cardClassName, monthlyTone.card)}>
             <p className="mb-1 text-sm font-medium text-white/70">Остаток периода</p>
 
             <p className="text-[3.2rem] font-extrabold leading-none tracking-tighter text-white">
@@ -406,17 +427,9 @@ const cardClassName =
 
               <div className="h-2 overflow-hidden rounded-full bg-white/15">
                 <div
-                  className={cn(
-                    "h-full rounded-full",
-                    isMonthlyOverBudget ? "bg-red-300" : "bg-white"
-                  )}
+                  className={cn("h-full rounded-full", monthlyTone.progressFill)}
                   style={{
-                    width: `${Math.min(
-                      100,
-                      store.monthlyBudget > 0
-                        ? (store.totalSpentCore / store.monthlyBudget) * 100
-                        : 0
-                    )}%`,
+                     width: `${getProgressWidth(store.totalSpentCore, store.monthlyBudget)}%`,
                   }}
                 />
               </div>

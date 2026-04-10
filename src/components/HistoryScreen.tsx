@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { formatMoneyWithCurrency, } from "@/lib/utils";
 import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
-import { buildMonthlyGroups, buildWeeklyGroups } from "@/lib/finance";
+import { buildMonthlyGroups, buildWeeklyGroups } from "@/domain/historyEngine";
 
 type HistoryScreenProps = {
   expenses: Expense[];

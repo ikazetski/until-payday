@@ -1,18 +1,9 @@
 import { create } from "zustand";
 import {
-  addDays,
-  countInclusiveDays,
-  filterExpensesByRange,
-  getCurrentWeekRange,
-  getCycleRange,
-  getPreviousSalaryDateFrom,
-  getWeekEnd,
-  getWeekStart,
-  makeRange,
   roundMoney,
   startOfDay,
-  sumExpenses,
 } from "@/lib/finance";
+import { calculateFinance } from "@/domain/financeEngine";
 
 export type ExpenseCategory =
   | "food"
@@ -104,214 +95,9 @@ type FinanceStore = {
 };
 
 const STORAGE_KEY = "until-payday-finance";
-const DAY_MS = 1000 * 60 * 60 * 24;
 
 function startOfToday() {
   return startOfDay(new Date());
-}
-
-function toDayKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function calculateDerived(data: PersistedData) {
-  const today = startOfToday();
-
-  const cycleRange = getCycleRange(
-    today,
-    data.salaryDay,
-    data.trackingStartedAt
-  );
-
-  const weekRange = getCurrentWeekRange(today, cycleRange);
-
-  const cycleExpenses = filterExpensesByRange(data.recentExpenses, cycleRange);
-  const totalSpentCore = sumExpenses(cycleExpenses);
-
-  const fixedTotal = roundMoney(
-    data.fixedExpenses.reduce((sum, item) => sum + item.amount, 0)
-  );
-
-  const remaining = roundMoney(data.monthlyBudget - totalSpentCore);
-
-  const todayRange = makeRange(today, addDays(today, 1));
-  const todayExpenses = filterExpensesByRange(cycleExpenses, todayRange);
-  const spentToday = sumExpenses(todayExpenses);
-
-  const expensesByDay = new Map<string, number>();
-  for (const expense of cycleExpenses) {
-    const key = toDayKey(startOfDay(new Date(expense.createdAt)));
-    expensesByDay.set(
-      key,
-      roundMoney((expensesByDay.get(key) ?? 0) + expense.amount)
-    );
-  }
-
-  let cursor = cycleRange.start;
-  let budgetAtStartOfDay = data.monthlyBudget;
-  let dailyBudget = 0;
-  let monthlyCarryover = 0;
-
-  while (cursor.getTime() <= today.getTime()) {
-    const key = toDayKey(cursor);
-    const spentThisDay = expensesByDay.get(key) ?? 0;
-
-    const daysRemainingInCycle = Math.max(
-      1,
-      Math.ceil((cycleRange.endExclusive.getTime() - cursor.getTime()) / DAY_MS)
-    );
-
-    const plannedForDay = budgetAtStartOfDay / daysRemainingInCycle;
-    const isPastDay = cursor.getTime() < today.getTime();
-
-    if (cursor.getTime() === today.getTime()) {
-      dailyBudget = plannedForDay;
-    }
-
-    monthlyCarryover += isPastDay
-      ? plannedForDay - spentThisDay
-      : Math.min(0, plannedForDay - spentThisDay);
-
-    budgetAtStartOfDay -= spentThisDay;
-    cursor = addDays(cursor, 1);
-  }
-
-  let weeklyBudget = 0;
-  let weeklySpent = 0;
-  let weeklyCarryover = 0;
-  let weeklyTodayAvailable = 0;
-
-  let currentWeekStart = getWeekStart(today);
-  let currentWeekEnd = getWeekEnd(today);
-
-  if (weekRange) {
-    currentWeekStart = weekRange.start;
-    currentWeekEnd = addDays(weekRange.endExclusive, -1);
-
-    const weekExpenses = filterExpensesByRange(cycleExpenses, weekRange);
-    weeklySpent = sumExpenses(weekExpenses);
-
-    const spentBeforeWeek = sumExpenses(
-      cycleExpenses.filter(
-        (expense) =>
-          new Date(expense.createdAt).getTime() < weekRange.start.getTime()
-      )
-    );
-
-    const remainingAtWeekStart = data.monthlyBudget - spentBeforeWeek;
-
-    const weekEndInclusive = addDays(weekRange.endExclusive, -1);
-    const cycleEndInclusive = addDays(cycleRange.endExclusive, -1);
-
-    const daysToCycleEnd = countInclusiveDays(
-      weekRange.start,
-      cycleEndInclusive
-    );
-    const weekDaysInScope = countInclusiveDays(
-      weekRange.start,
-      weekEndInclusive
-    );
-
-    weeklyBudget =
-      daysToCycleEnd > 0 && weekDaysInScope > 0
-        ? roundMoney((remainingAtWeekStart / daysToCycleEnd) * weekDaysInScope)
-        : 0;
-
-    const weeklyRemaining = weeklyBudget - weeklySpent;
-    const weeklyDaysLeft = countInclusiveDays(today, weekEndInclusive);
-    const weeklyRemainingAtStartOfToday = weeklyRemaining + spentToday;
-
-    const weeklyTodayBudget =
-      weeklyDaysLeft > 0
-        ? weeklyRemainingAtStartOfToday / weeklyDaysLeft
-        : 0;
-
-    weeklyTodayAvailable = roundMoney(weeklyTodayBudget - spentToday);
-
-    const weekDayExpenses = new Map<string, number>();
-    for (const expense of weekExpenses) {
-      const key = toDayKey(startOfDay(new Date(expense.createdAt)));
-      weekDayExpenses.set(
-        key,
-        roundMoney((weekDayExpenses.get(key) ?? 0) + expense.amount)
-      );
-    }
-
-    let weeklyBudgetCursor = weekRange.start;
-    let budgetAtWeekStart = remainingAtWeekStart;
-
-    while (weeklyBudgetCursor.getTime() <= today.getTime()) {
-      const key = toDayKey(weeklyBudgetCursor);
-      const spentThisDay = weekDayExpenses.get(key) ?? 0;
-
-      const daysRemainingInWeekScope = countInclusiveDays(
-        weeklyBudgetCursor,
-        weekEndInclusive
-      );
-
-      const plannedForDay =
-        daysRemainingInWeekScope > 0
-          ? budgetAtWeekStart / daysRemainingInWeekScope
-          : 0;
-
-      const isPastDay = weeklyBudgetCursor.getTime() < today.getTime();
-
-      weeklyCarryover += isPastDay
-        ? plannedForDay - spentThisDay
-        : Math.min(0, plannedForDay - spentThisDay);
-
-      budgetAtWeekStart -= spentThisDay;
-      weeklyBudgetCursor = addDays(weeklyBudgetCursor, 1);
-    }
-  }
-
-  const todayAvailable = roundMoney(dailyBudget - spentToday);
-  const weeklyRemaining = roundMoney(weeklyBudget - weeklySpent);
-
-  let status: Status = "green";
-  if (remaining < -0.01) {
-    status = "red";
-  } else if (monthlyCarryover < -0.01) {
-    status = "yellow";
-  }
-
-  let weeklyStatus: Status = "green";
-  if (weeklyRemaining < -0.01) {
-    weeklyStatus = "red";
-  } else if (weeklyCarryover < -0.01) {
-    weeklyStatus = "yellow";
-  }
-
-  const daysLeft = Math.max(
-    1,
-    Math.ceil((cycleRange.endExclusive.getTime() - today.getTime()) / DAY_MS)
-  );
-
-  return {
-    remaining: roundMoney(remaining),
-    daysLeft,
-    dailyBudget: roundMoney(dailyBudget),
-    spentToday: roundMoney(spentToday),
-    todayAvailable: roundMoney(todayAvailable),
-    weeklyTodayAvailable: roundMoney(weeklyTodayAvailable),
-    savings: roundMoney(monthlyCarryover),
-    fixedTotal,
-    totalSpentCore: roundMoney(totalSpentCore),
-    previousSalaryDate: getPreviousSalaryDateFrom(today, data.salaryDay),
-    currentCycleStart: cycleRange.start,
-    nextSalaryDate: cycleRange.endExclusive,
-    status,
-    weeklyBudget: roundMoney(weeklyBudget),
-    weeklyRemaining,
-    weeklySavings: roundMoney(weeklyCarryover),
-    weeklySpent: roundMoney(weeklySpent),
-    weeklyStatus,
-    currentWeekStart,
-    currentWeekEnd,
-  };
 }
 
 function loadInitialData(): PersistedData {
@@ -371,7 +157,7 @@ function saveData(data: PersistedData) {
 }
 
 const initialData = loadInitialData();
-const initialDerived = calculateDerived(initialData);
+const initialDerived = calculateFinance(initialData);
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
   ...initialData,
@@ -401,7 +187,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     saveData(updatedData);
     set({
       ...updatedData,
-      ...calculateDerived(updatedData),
+      ...calculateFinance(updatedData),
     });
   },
 
@@ -420,7 +206,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     saveData(updatedData);
     set({
       ...updatedData,
-      ...calculateDerived(updatedData),
+      ...calculateFinance(updatedData),
     });
   },
 
@@ -446,7 +232,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     saveData(updatedData);
     set({
       ...updatedData,
-      ...calculateDerived(updatedData),
+      ...calculateFinance(updatedData),
     });
   },
 
@@ -473,7 +259,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     saveData(updatedData);
     set({
       ...updatedData,
-      ...calculateDerived(updatedData),
+      ...calculateFinance(updatedData),
     });
   },
 
@@ -492,7 +278,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     saveData(updatedData);
     set({
       ...updatedData,
-      ...calculateDerived(updatedData),
+      ...calculateFinance(updatedData),
     });
   },
 
@@ -511,7 +297,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     saveData(updatedData);
     set({
       ...updatedData,
-      ...calculateDerived(updatedData),
+      ...calculateFinance(updatedData),
     });
   },
 
@@ -530,7 +316,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     saveData(restoredData);
     set({
       ...restoredData,
-      ...calculateDerived(restoredData),
+      ...calculateFinance(restoredData),
     });
   },
 
@@ -548,7 +334,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
 
     set({
       ...currentData,
-      ...calculateDerived(currentData),
+      ...calculateFinance(currentData),
     });
   },
 }));
