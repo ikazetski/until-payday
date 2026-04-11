@@ -216,6 +216,11 @@ function buildWeekMetrics(
   const savings = sumSavings(weekDays);
   const today = weekDays.find((day) => day.isToday);
 
+  const rawTodayAvailable = today?.availableForDay ?? 0;
+  const cappedTodayAvailable = roundMoney(
+    Math.min(rawTodayAvailable, Math.max(0, remaining))
+  );
+
   return {
     start: weekRange.start,
     endInclusive: addDays(weekRange.endExclusive, -1),
@@ -223,7 +228,7 @@ function buildWeekMetrics(
     budget,
     remaining,
     savings,
-    todayAvailable: today?.availableForDay ?? 0,
+    todayAvailable: cappedTodayAvailable,
     status: resolveStatus(remaining, savings),
   };
 }
