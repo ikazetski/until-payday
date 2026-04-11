@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Settings, Plus, Wallet, CalendarDays } from "lucide-react";
+import { Settings, Wallet, CalendarDays } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -10,10 +10,9 @@ import {
   getCurrencySymbol,
 } from "@/lib/utils";
 import { useFinanceStore } from "@/hooks/useFinanceStore";
-import { StatusIndicator } from "@/components/StatusIndicator";
 import { QuickActions } from "@/components/QuickActions";
 import { AddExpenseModal } from "@/components/AddExpenseModal";
-import { CustomExpenseModal } from "@/components/CustomExpenseModal";
+import { StatusIndicator } from "@/components/StatusIndicator";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { RecentTransactions } from "@/components/RecentTransactions";
 import { BottomNav } from "@/components/BottomNav";
@@ -24,7 +23,6 @@ const Index = () => {
 
   const currencySymbol = getCurrencySymbol(store.currency);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
-  const [customExpenseModalOpen, setCustomExpenseModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "history">("home");
   const [activeCard, setActiveCard] = useState<0 | 1>(0);
@@ -72,52 +70,49 @@ const Index = () => {
     }, 5000);
   };
 
-  const handleExpenseAdd = (
-  amount: number,
-  category: "food" | "sport" | "fuel" | "entertainment" | "other"
-) => {
-  store.addExpense(amount, category);
-  showUndoForLastExpense();
-};
-
-const handleSettingsSave = (
-  monthlyBudget: number,
-  salaryDay: number,
-  currency: typeof store.currency
-) => {
-  const snapshot = {
-    monthlyBudget: store.monthlyBudget,
-    salaryDay: store.salaryDay,
-    currency: store.currency,
-    trackingStartedAt: store.trackingStartedAt,
+  const handleExpenseAdd = (amount: number, category: string) => {
+    store.addExpense(amount, category);
+    showUndoForLastExpense();
   };
 
-  store.updateSettings(monthlyBudget, salaryDay, currency);
-  setSettingsUndo(snapshot);
+  const handleSettingsSave = (
+    monthlyBudget: number,
+    salaryDay: number,
+    currency: typeof store.currency
+  ) => {
+    const snapshot = {
+      monthlyBudget: store.monthlyBudget,
+      salaryDay: store.salaryDay,
+      currency: store.currency,
+      trackingStartedAt: store.trackingStartedAt,
+    };
 
-  clearSettingsUndoTimer();
+    store.updateSettings(monthlyBudget, salaryDay, currency);
+    setSettingsUndo(snapshot);
 
-  settingsUndoTimerRef.current = window.setTimeout(() => {
+    clearSettingsUndoTimer();
+
+    settingsUndoTimerRef.current = window.setTimeout(() => {
+      setSettingsUndo(null);
+      settingsUndoTimerRef.current = null;
+    }, 5000);
+  };
+
+  const handleUndoSettings = () => {
+    if (!settingsUndo) return;
+
+    store.restoreSettings(settingsUndo);
     setSettingsUndo(null);
-    settingsUndoTimerRef.current = null;
-  }, 5000);
-};
+    clearSettingsUndoTimer();
+  };
 
-const handleUndoSettings = () => {
-  if (!settingsUndo) return;
+  const handleUndoExpense = () => {
+    if (!undoExpense) return;
 
-  store.restoreSettings(settingsUndo);
-  setSettingsUndo(null);
-  clearSettingsUndoTimer();
-};
-
-const handleUndoExpense = () => {
-  if (!undoExpense) return;
-
-  store.removeExpense(undoExpense.id);
-  setUndoExpense(null);
-  clearUndoTimer();
-};
+    store.removeExpense(undoExpense.id);
+    setUndoExpense(null);
+    clearUndoTimer();
+  };
 
   useEffect(() => {
     return () => {
@@ -155,26 +150,26 @@ const handleUndoExpense = () => {
 
     return store.recentExpenses.filter((expense) => {
       const expenseDate = new Date(expense.createdAt).getTime();
-
       return expenseDate >= cycleStart && expenseDate < nextSalaryDate;
     });
   }, [store.recentExpenses, store.currentCycleStart, store.nextSalaryDate]);
 
   const weekExpenses = useMemo(() => {
-  const start = store.currentWeekStart.getTime();
-  const endExclusive = new Date(
-    store.currentWeekEnd.getFullYear(),
-    store.currentWeekEnd.getMonth(),
-    store.currentWeekEnd.getDate() + 1
-  ).getTime();
+    const start = store.currentWeekStart.getTime();
+    const endExclusive = new Date(
+      store.currentWeekEnd.getFullYear(),
+      store.currentWeekEnd.getMonth(),
+      store.currentWeekEnd.getDate() + 1
+    ).getTime();
 
-  return store.recentExpenses.filter((expense) => {
-    const expenseTime = new Date(expense.createdAt).getTime();
-    return expenseTime >= start && expenseTime < endExclusive;
-  });
-}, [store.recentExpenses, store.currentWeekStart, store.currentWeekEnd]);
+    return store.recentExpenses.filter((expense) => {
+      const expenseTime = new Date(expense.createdAt).getTime();
+      return expenseTime >= start && expenseTime < endExclusive;
+    });
+  }, [store.recentExpenses, store.currentWeekStart, store.currentWeekEnd]);
 
   const currentPeriodExpenses = activeCard === 0 ? weekExpenses : cycleExpenses;
+
   const currentPeriodTitle =
     activeCard === 0
       ? `${format(store.currentWeekStart, "d MMM", { locale: ru })} – ${format(
@@ -209,16 +204,22 @@ const handleUndoExpense = () => {
     }
   };
 
-const weekPlanValue = store.weeklySavings;
-const weekPlanTitle = weekPlanValue >= 0 ? "Сэкономлено" : "Перерасход";
-const weekPlanDisplay = `${weekPlanValue > 0 ? "+" : ""}${formatMoney(weekPlanValue)}`;
+  const weeklyOverspend =
+    store.weeklyRemaining < 0 ? Math.abs(store.weeklyRemaining) : 0;
 
-const monthPlanValue = store.savings;
-const monthPlanTitle = monthPlanValue >= 0 ? "Сэкономлено" : "Перерасход";
-const monthPlanDisplay = `${monthPlanValue > 0 ? "+" : ""}${formatMoney(monthPlanValue)}`;
+  const monthlyOverspend =
+    store.remaining < 0 ? Math.abs(store.remaining) : 0;
 
-const cardClassName =
-  "rounded-[32px] bg-gradient-to-br px-6 pt-6 pb-5 shadow-lg min-h-[380px]";
+  const weekPlanTitle = weeklyOverspend > 0 ? "Перерасход" : "По плану";
+  const weekPlanDisplay =
+    weeklyOverspend > 0 ? `-${formatMoney(weeklyOverspend)}` : "0,00";
+
+  const monthPlanTitle = monthlyOverspend > 0 ? "Перерасход" : "По плану";
+  const monthPlanDisplay =
+    monthlyOverspend > 0 ? `-${formatMoney(monthlyOverspend)}` : "0,00";
+
+  const cardClassName =
+    "rounded-[32px] bg-gradient-to-br px-6 pt-5 pb-4 shadow-lg min-h-[330px]";
 
   const toneMap = {
     green: {
@@ -227,20 +228,23 @@ const cardClassName =
       muted: "text-white/70",
       progressTrack: "bg-white/15",
       progressFill: "bg-white/70",
+      negative: "text-red-300",
     },
     yellow: {
       card: "from-[#F7C948] to-[#F59E0B]",
       value: "text-white",
-      muted: "text-white/80",
+      muted: "text-white/85",
       progressTrack: "bg-white/20",
       progressFill: "bg-white",
+      negative: "text-[#FFF1F2]",
     },
     red: {
       card: "from-[#FF6B6B] to-[#E53935]",
       value: "text-white",
-      muted: "text-white/80",
+      muted: "text-white/85",
       progressTrack: "bg-white/20",
       progressFill: "bg-white",
+      negative: "text-white",
     },
   } as const;
 
@@ -248,27 +252,27 @@ const cardClassName =
   const monthlyTone = toneMap[store.status];
 
   const getProgressWidth = (spent: number, budget: number) => {
-  if (budget <= 0) return spent > 0 ? 100 : 0;
-  return Math.min(100, Math.max(0, (spent / budget) * 100));
+    if (budget <= 0) return spent > 0 ? 100 : 0;
+    return Math.min(100, Math.max(0, (spent / budget) * 100));
   };
 
- if (activeTab === "history") {
-  return (
-    <>
-      <HistoryScreen
-        expenses={store.recentExpenses}
-        monthlyBudget={store.monthlyBudget}
-        salaryDay={store.salaryDay}
-        trackingStartedAt={store.trackingStartedAt}
-        currency={store.currency}
-      />
-      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
-    </>
-  );
- }
+  if (activeTab === "history") {
+    return (
+      <>
+        <HistoryScreen
+          expenses={store.recentExpenses}
+          monthlyBudget={store.monthlyBudget}
+          salaryDay={store.salaryDay}
+          trackingStartedAt={store.trackingStartedAt}
+          currency={store.currency}
+        />
+        <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+      </>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background px-5 pt-safe pb-24 max-w-md mx-auto">
+    <div className="mx-auto min-h-screen max-w-md bg-background px-5 pt-safe pb-24">
       <div className="mb-6 flex items-center justify-between pt-10">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600">
@@ -292,11 +296,8 @@ const cardClassName =
       >
         <div className="min-w-full snap-start">
           <StatusIndicator
-          status={store.weeklyStatus}
-          savings={store.weeklySavings}
-          currency={store.currency}
-          period="week"
-         />
+            status={store.weeklyStatus}
+          />
 
           <div className={cn(cardClassName, weeklyTone.card)}>
             <p className="mb-1 text-sm font-medium text-white/70">Остаток недели</p>
@@ -316,43 +317,42 @@ const cardClassName =
             </div>
 
             <div className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5">
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-white/50">На сегодня</p>
-              <p className="text-2xl font-bold text-white">
-                {store.weeklyTodayAvailable > 0 ? "+" : ""}
-                {store.weeklyTodayAvailable === 0 ? "0" : formatMoney(store.weeklyTodayAvailable)}
-              </p>
-              <p className="mt-0.5 text-[10px] text-white/35">
-                доступно сегодня
-              </p>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/50">На сегодня</p>
+                <p className="text-2xl font-bold text-white">
+                  {store.weeklyTodayAvailable > 0 ? "+" : ""}
+                  {store.weeklyTodayAvailable === 0
+                    ? "0"
+                    : formatMoney(store.weeklyTodayAvailable)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-white/35">доступно сегодня</p>
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/50">{weekPlanTitle}</p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold",
+                    weeklyOverspend > 0 ? weeklyTone.negative : "text-white"
+                  )}
+                >
+                  {weekPlanDisplay}
+                </p>
+                <p className="mt-0.5 text-[10px] text-white/35">по неделе</p>
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/50">Потрачено</p>
+                <p className="text-2xl font-bold text-white">
+                  {formatMoney(store.spentToday)}
+                </p>
+                <p className="mt-0.5 text-[10px] leading-4 text-white/35">
+                  сегодня
+                </p>
+              </div>
             </div>
 
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-white/50">{weekPlanTitle}</p>
-              <p
-                className={cn(
-                  "text-2xl font-bold",
-                  store.weeklySavings >= 0 ? "text-emerald-300" : "text-red-300"
-                )}
-              >
-                {weekPlanDisplay}
-              </p>
-              <p className="mt-0.5 text-[10px] text-white/35">по неделе</p>
-            </div>
-
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-white/50">Потрачено</p>
-              <p className="text-2xl font-bold text-white">
-                {formatMoney(store.spentToday)}
-              </p>
-
-              <p className="mt-0.5 text-[10px] leading-4 text-white/35">
-                сегодня
-              </p>
-            </div>
-          </div>
-
-            <div className="mt-auto border-t border-white/10 pt-3">
+            <div className="mt-4 border-t border-white/10 pt-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-white/40">Прогресс недели</span>
                 <span className="text-sm font-semibold text-white/70">
@@ -360,11 +360,11 @@ const cardClassName =
                 </span>
               </div>
 
-              <div className="h-2 overflow-hidden rounded-full bg-white/15">
+              <div className={cn("h-2 overflow-hidden rounded-full", weeklyTone.progressTrack)}>
                 <div
                   className={cn("h-full rounded-full", weeklyTone.progressFill)}
                   style={{
-                     width: `${getProgressWidth(store.weeklySpent, store.weeklyBudget)}%`,
+                    width: `${getProgressWidth(store.weeklySpent, store.weeklyBudget)}%`,
                   }}
                 />
               </div>
@@ -374,10 +374,7 @@ const cardClassName =
 
         <div className="min-w-full snap-start">
           <StatusIndicator
-          status={store.status}
-          savings={store.savings}
-          currency={store.currency}
-          period="month"
+            status={store.status}
           />
 
           <div className={cn(cardClassName, monthlyTone.card)}>
@@ -397,19 +394,19 @@ const cardClassName =
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/15 pt-5">
-             <div>
-               <p className="text-xs font-medium text-white/50">Дней</p>
-               <p className="text-2xl font-bold text-white">{store.daysLeft}</p>
-               <p className="mt-0.5 text-[10px] text-white/35">до зарплаты</p>
-             </div>
+              <div>
+                <p className="text-xs font-medium text-white/50">Дней</p>
+                <p className="text-2xl font-bold text-white">{store.daysLeft}</p>
+                <p className="mt-0.5 text-[10px] text-white/35">до зарплаты</p>
+              </div>
 
-             <div>
-               <p className="text-xs font-medium text-white/50">{monthPlanTitle}</p>
-               <p
-                 className={cn(
-                   "text-2xl font-bold",
-                   store.savings >= 0 ? "text-emerald-300" : "text-red-300"
-                 )}
+              <div>
+                <p className="text-xs font-medium text-white/50">{monthPlanTitle}</p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold",
+                    monthlyOverspend > 0 ? monthlyTone.negative : "text-white"
+                  )}
                 >
                   {monthPlanDisplay}
                 </p>
@@ -417,7 +414,7 @@ const cardClassName =
               </div>
             </div>
 
-            <div className="mt-auto border-t border-white/10 pt-3">
+            <div className="mt-4 border-t border-white/10 pt-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-white/40">Прогресс периода</span>
                 <span className="text-sm font-semibold text-white/70">
@@ -425,11 +422,16 @@ const cardClassName =
                 </span>
               </div>
 
-              <div className="h-2 overflow-hidden rounded-full bg-white/15">
+              <div
+                className={cn("h-2 overflow-hidden rounded-full", monthlyTone.progressTrack)}
+              >
                 <div
                   className={cn("h-full rounded-full", monthlyTone.progressFill)}
                   style={{
-                     width: `${getProgressWidth(store.totalSpentCore, store.monthlyBudget)}%`,
+                    width: `${getProgressWidth(
+                      store.totalSpentCore,
+                      store.monthlyBudget
+                    )}%`,
                   }}
                 />
               </div>
@@ -459,17 +461,9 @@ const cardClassName =
 
         <QuickActions
           onQuickExpense={(amount) => handleExpenseAdd(amount, "other")}
-          onCustom={() => setCustomExpenseModalOpen(true)}
+          onCustom={() => setExpenseModalOpen(true)}
         />
       </div>
-
-      <button
-        onClick={() => setExpenseModalOpen(true)}
-        className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 text-[15px] font-semibold text-white shadow-[0_4px_16px_-4px_rgba(80,60,200,0.4)] transition-transform active:scale-[0.98]"
-      >
-        <Plus className="h-5 w-5" />
-        Добавить расход
-      </button>
 
       <div className="finance-card mt-5">
         <div className="flex items-center justify-between">
@@ -482,21 +476,24 @@ const cardClassName =
         <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
           <span className="text-sm text-muted-foreground">Всего потрачено</span>
           <span className="text-sm font-semibold">
-            {formatMoneyWithCurrency(store.totalSpentCore + store.fixedTotal,store.currency)}
+            {formatMoneyWithCurrency(
+              store.totalSpentCore + store.fixedTotal,
+              store.currency
+            )}
           </span>
         </div>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          Фиксированные расходы не уменьшают дневной лимит, но показываются в
-          общем итоге.
+          Фиксированные расходы не уменьшают дневной лимит, но показываются в общем
+          итоге.
         </p>
       </div>
 
       <div className="mt-5">
         <RecentTransactions
-        expenses={currentPeriodExpenses}
-        periodTitle={currentPeriodTitle}
-        currency={store.currency}
+          expenses={currentPeriodExpenses}
+          periodTitle={currentPeriodTitle}
+          currency={store.currency}
         />
       </div>
 
@@ -504,12 +501,8 @@ const cardClassName =
         open={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}
         onAdd={handleExpenseAdd}
-      />
-
-      <CustomExpenseModal
-        open={customExpenseModalOpen}
-        onClose={() => setCustomExpenseModalOpen(false)}
-        onAdd={(amount) => handleExpenseAdd(amount, "other")}
+        categories={store.expenseCategories}
+        onAddCategory={store.addExpenseCategory}
       />
 
       <SettingsSheet

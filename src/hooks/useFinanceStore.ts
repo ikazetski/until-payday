@@ -1,16 +1,22 @@
 import { create } from "zustand";
-import {
-  roundMoney,
-  startOfDay,
-} from "@/lib/finance";
+import { roundMoney, startOfDay } from "@/lib/finance";
 import { calculateFinance } from "@/domain/financeEngine";
 
-export type ExpenseCategory =
-  | "food"
-  | "sport"
-  | "fuel"
-  | "entertainment"
-  | "other";
+export type ExpenseCategory = string;
+
+export type ExpenseCategoryItem = {
+  id: string;
+  name: string;
+  system?: boolean;
+};
+
+const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryItem[] = [
+  { id: "food", name: "Еда", system: true },
+  { id: "sport", name: "Спорт", system: true },
+  { id: "fuel", name: "Топливо", system: true },
+  { id: "entertainment", name: "Развлечения", system: true },
+  { id: "other", name: "Другое", system: true },
+];
 
 export type Expense = {
   id: string;
@@ -37,6 +43,7 @@ type PersistedData = {
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
+  expenseCategories: ExpenseCategoryItem[];
 };
 
 type SettingsSnapshot = {
@@ -53,6 +60,7 @@ type FinanceStore = {
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
+  expenseCategories: ExpenseCategoryItem[];
 
   remaining: number;
   daysLeft: number;
@@ -76,21 +84,22 @@ type FinanceStore = {
   currentWeekStart: Date;
   currentWeekEnd: Date;
 
-  addExpense: (
-    amount: number,
-    category: ExpenseCategory,
-    note?: string
-  ) => void;
+  addExpenseCategory: (name: string) => void;
+
+  addExpense: (amount: number, category: ExpenseCategory) => void;
   removeExpense: (id: string) => void;
+
   addFixedExpense: (name: string, amount: number) => void;
   updateFixedExpense: (id: string, name: string, amount: number) => void;
   removeFixedExpense: (id: string) => void;
+
   updateSettings: (
     monthlyBudget: number,
     salaryDay: number,
     currency: CurrencyCode
   ) => void;
   restoreSettings: (snapshot: SettingsSnapshot) => void;
+
   refreshDerived: () => void;
   startNewCycle: () => void;
 };
@@ -101,6 +110,40 @@ function startOfToday() {
   return startOfDay(new Date());
 }
 
+function isValidCurrency(value: unknown): value is CurrencyCode {
+  return (
+    value === "BYN" ||
+    value === "EUR" ||
+    value === "USD" ||
+    value === "RUB" ||
+    value === "UAH"
+  );
+}
+
+function normalizeExpenseCategories(
+  value: unknown
+): ExpenseCategoryItem[] {
+  if (!Array.isArray(value)) {
+    return DEFAULT_EXPENSE_CATEGORIES;
+  }
+
+  const normalized = value.filter(
+    (item): item is ExpenseCategoryItem =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof item.id === "string" &&
+      item.id.trim().length > 0 &&
+      typeof item.name === "string" &&
+      item.name.trim().length > 0
+  );
+
+  if (normalized.length === 0) {
+    return DEFAULT_EXPENSE_CATEGORIES;
+  }
+
+  return normalized;
+}
+
 function loadInitialData(): PersistedData {
   const fallback: PersistedData = {
     monthlyBudget: 0,
@@ -109,6 +152,7 @@ function loadInitialData(): PersistedData {
     fixedExpenses: [],
     recentExpenses: [],
     trackingStartedAt: startOfToday().toISOString(),
+    expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
   };
 
   if (typeof window === "undefined") return fallback;
@@ -124,28 +168,30 @@ function loadInitialData(): PersistedData {
         typeof parsed.monthlyBudget === "number"
           ? parsed.monthlyBudget
           : fallback.monthlyBudget,
+
       salaryDay:
         typeof parsed.salaryDay === "number"
           ? parsed.salaryDay
           : fallback.salaryDay,
-      currency:
-        parsed.currency === "BYN" ||
-        parsed.currency === "EUR" ||
-        parsed.currency === "USD" ||
-        parsed.currency === "RUB" ||
-        parsed.currency === "UAH"
-          ? parsed.currency
-          : fallback.currency,
+
+      currency: isValidCurrency(parsed.currency)
+        ? parsed.currency
+        : fallback.currency,
+
       fixedExpenses: Array.isArray(parsed.fixedExpenses)
         ? parsed.fixedExpenses
         : fallback.fixedExpenses,
+
       recentExpenses: Array.isArray(parsed.recentExpenses)
         ? parsed.recentExpenses
         : fallback.recentExpenses,
+
       trackingStartedAt:
         typeof parsed.trackingStartedAt === "string"
           ? parsed.trackingStartedAt
           : fallback.trackingStartedAt,
+
+      expenseCategories: normalizeExpenseCategories(parsed.expenseCategories),
     };
   } catch {
     return fallback;
@@ -164,7 +210,50 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   ...initialData,
   ...initialDerived,
 
-  addExpense: (amount, category, note) => {
+  addExpenseCategory: (name: string) => {
+    const current = get();
+    const trimmed = name.trim();
+
+    if (!trimmed) return;
+    if (trimmed.length > 12) return;
+
+    const existsAlready = current.expenseCategories.some(
+      (item) => item.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+
+    if (existsAlready) return;
+
+    const customCategoriesCount = current.expenseCategories.filter(
+      (item) => !item.system
+    ).length;
+
+    if (customCategoriesCount >= 5) return;
+
+    const newCategory: ExpenseCategoryItem = {
+      id: `custom_${Date.now()}`,
+      name: trimmed,
+      system: false,
+    };
+
+    const updatedData: PersistedData = {
+      monthlyBudget: current.monthlyBudget,
+      salaryDay: current.salaryDay,
+      currency: current.currency,
+      fixedExpenses: current.fixedExpenses,
+      recentExpenses: current.recentExpenses,
+      trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: [...current.expenseCategories, newCategory],
+    };
+
+    saveData(updatedData);
+
+    set({
+      ...updatedData,
+      ...calculateFinance(updatedData),
+    });
+  },
+
+  addExpense: (amount, category) => {
     const current = get();
 
     const updatedData: PersistedData = {
@@ -177,15 +266,16 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
           id: crypto.randomUUID(),
           amount: roundMoney(amount),
           category,
-          note,
           createdAt: new Date().toISOString(),
         },
         ...current.recentExpenses,
       ],
       trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
     };
 
     saveData(updatedData);
+
     set({
       ...updatedData,
       ...calculateFinance(updatedData),
@@ -202,9 +292,11 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses.filter((item) => item.id !== id),
       trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
     };
 
     saveData(updatedData);
+
     set({
       ...updatedData,
       ...calculateFinance(updatedData),
@@ -228,9 +320,11 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       ],
       recentExpenses: current.recentExpenses,
       trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
     };
 
     saveData(updatedData);
+
     set({
       ...updatedData,
       ...calculateFinance(updatedData),
@@ -255,9 +349,11 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       ),
       recentExpenses: current.recentExpenses,
       trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
     };
 
     saveData(updatedData);
+
     set({
       ...updatedData,
       ...calculateFinance(updatedData),
@@ -274,9 +370,11 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       fixedExpenses: current.fixedExpenses.filter((item) => item.id !== id),
       recentExpenses: current.recentExpenses,
       trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
     };
 
     saveData(updatedData);
+
     set({
       ...updatedData,
       ...calculateFinance(updatedData),
@@ -284,23 +382,25 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   },
 
   updateSettings: (monthlyBudget, salaryDay, currency) => {
-  const current = get();
+    const current = get();
 
-  const updatedData: PersistedData = {
-    monthlyBudget: roundMoney(monthlyBudget),
-    salaryDay,
-    currency,
-    fixedExpenses: current.fixedExpenses,
-    recentExpenses: current.recentExpenses,
-    trackingStartedAt: current.trackingStartedAt,
-  };
+    const updatedData: PersistedData = {
+      monthlyBudget: roundMoney(monthlyBudget),
+      salaryDay,
+      currency,
+      fixedExpenses: current.fixedExpenses,
+      recentExpenses: current.recentExpenses,
+      trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
+    };
 
-  saveData(updatedData);
-  set({
-    ...updatedData,
-    ...calculateFinance(updatedData),
-  });
-},
+    saveData(updatedData);
+
+    set({
+      ...updatedData,
+      ...calculateFinance(updatedData),
+    });
+  },
 
   restoreSettings: (snapshot) => {
     const current = get();
@@ -312,9 +412,11 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
       trackingStartedAt: snapshot.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
     };
 
     saveData(restoredData);
+
     set({
       ...restoredData,
       ...calculateFinance(restoredData),
@@ -331,6 +433,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
       trackingStartedAt: current.trackingStartedAt,
+      expenseCategories: current.expenseCategories,
     };
 
     set({
@@ -348,7 +451,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       currency: current.currency,
       fixedExpenses: current.fixedExpenses,
       recentExpenses: current.recentExpenses,
-      trackingStartedAt: startOfDay(new Date()).toISOString(),
+      trackingStartedAt: startOfToday().toISOString(),
+      expenseCategories: current.expenseCategories,
     };
 
     saveData(updatedData);
