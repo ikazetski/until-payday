@@ -2,6 +2,11 @@ import { useMemo, useState } from "react";
 import { formatMoneyWithCurrency, } from "@/lib/utils";
 import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 import { buildMonthlyGroups, buildWeeklyGroups } from "@/domain/historyEngine";
+import { useFinanceStore } from "@/hooks/useFinanceStore";
+import {
+  getExpenseCategoryIcon,
+  getExpenseCategoryName,
+} from "@/lib/utils";
 
 type HistoryScreenProps = {
   expenses: Expense[];
@@ -37,10 +42,12 @@ function HistoryPeriodCard({
   group,
   mode,
   currency,
+  expenseCategories,
 }: {
   group: PeriodGroup;
   mode: HistoryMode;
   currency: CurrencyCode;
+  expenseCategories: { id: string; name: string }[];
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -96,25 +103,35 @@ function HistoryPeriodCard({
         ) : (
           <>
             <div className="space-y-2">
-              {visibleExpenses.map((expense) => (
-                <div
-                  key={expense.id}
-                  className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(expense.createdAt).toLocaleDateString("ru-RU")}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {expense.note || "Расход"}
-                    </p>
-                  </div>
+              {visibleExpenses.map((expense) => {
+                const Icon = getExpenseCategoryIcon(expense.category);
 
-                  <span className="ml-3 text-sm font-semibold text-gray-900">
-                    −{formatMoneyWithCurrency(expense.amount, currency)}
-                  </span>
-                </div>
-              ))}
+                return (
+                  <div
+                    key={expense.id}
+                    className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white">
+                        <Icon className="h-4 w-4 text-gray-700" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900">
+                          {new Date(expense.createdAt).toLocaleDateString("ru-RU")}
+                        </p>
+                        <p className="truncate text-xs text-gray-500">
+                          {getExpenseCategoryName(expense.category, expenseCategories)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="ml-3 shrink-0 text-sm font-semibold text-gray-900">
+                      −{formatMoneyWithCurrency(expense.amount, currency)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {group.expenses.length > 5 && (
@@ -150,6 +167,7 @@ export function HistoryScreen({
     () => buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
     [expenses, monthlyBudget, salaryDay, trackingStartedAt]
   );
+  const expenseCategories = useFinanceStore((state) => state.expenseCategories);
 
   const visibleGroups = mode === "weeks" ? weeklyGroups : monthlyGroups;
 
@@ -200,6 +218,7 @@ export function HistoryScreen({
               group={group}
               mode={mode}
               currency={currency}
+              expenseCategories={expenseCategories}
             />
           ))}
         </div>

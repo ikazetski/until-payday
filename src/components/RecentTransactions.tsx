@@ -1,17 +1,11 @@
 import { useMemo, useState } from "react";
 import {
-  Dumbbell,
-  Fuel,
-  PartyPopper,
-  UtensilsCrossed,
-  Wallet,
-} from "lucide-react";
-import { formatMoneyWithCurrency } from "@/lib/utils";
-import type {
-  Expense,
-  ExpenseCategory,
-  CurrencyCode,
-} from "@/hooks/useFinanceStore";
+  formatMoneyWithCurrency,
+  getExpenseCategoryIcon,
+  getExpenseCategoryName,
+} from "@/lib/utils";
+import { useFinanceStore } from "@/hooks/useFinanceStore";
+import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 
 type RecentTransactionsProps = {
   expenses: Expense[];
@@ -19,42 +13,13 @@ type RecentTransactionsProps = {
   currency: CurrencyCode;
 };
 
-function getCategoryLabel(category: ExpenseCategory) {
-  switch (category) {
-    case "food":
-      return "Еда";
-    case "sport":
-      return "Спорт";
-    case "fuel":
-      return "Бензин";
-    case "entertainment":
-      return "Развлечения";
-    default:
-      return "Другое";
-  }
-}
-
-function getCategoryIcon(category: ExpenseCategory) {
-  switch (category) {
-    case "food":
-      return UtensilsCrossed;
-    case "sport":
-      return Dumbbell;
-    case "fuel":
-      return Fuel;
-    case "entertainment":
-      return PartyPopper;
-    default:
-      return Wallet;
-  }
-}
-
 export function RecentTransactions({
   expenses,
   periodTitle,
   currency,
 }: RecentTransactionsProps) {
   const [expanded, setExpanded] = useState(false);
+  const expenseCategories = useFinanceStore((state) => state.expenseCategories);
 
   const visibleExpenses = useMemo(() => {
     if (expanded) return expenses;
@@ -83,7 +48,7 @@ export function RecentTransactions({
         <>
           <div className="space-y-2">
             {visibleExpenses.map((expense) => {
-              const Icon = getCategoryIcon(expense.category);
+              const Icon = getExpenseCategoryIcon(expense.category);
 
               return (
                 <div
@@ -97,7 +62,7 @@ export function RecentTransactions({
 
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900">
-                        {getCategoryLabel(expense.category)}
+                        {getExpenseCategoryName(expense.category, expenseCategories)}
                       </p>
                       <p className="truncate text-xs text-gray-500">
                         {new Date(expense.createdAt).toLocaleDateString("ru-RU")}
