@@ -17,6 +17,7 @@ import { SettingsSheet } from "@/components/SettingsSheet";
 import { RecentTransactions } from "@/components/RecentTransactions";
 import { BottomNav } from "@/components/BottomNav";
 import { HistoryScreen } from "@/components/HistoryScreen";
+import { AnalyticsScreen } from "@/components/AnalyticsScreen";
 
 const Index = () => {
   const store = useFinanceStore();
@@ -24,7 +25,7 @@ const Index = () => {
   const currencySymbol = getCurrencySymbol(store.currency);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"home" | "history">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "analytics" | "history">("home");
   const [showWeeklyInfo, setShowWeeklyInfo] = useState(false);
   const [showMonthlyInfo, setShowMonthlyInfo] = useState(false);
   const [activeCard, setActiveCard] = useState<0 | 1>(0);
@@ -287,6 +288,15 @@ const Index = () => {
         />
         <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
       </>
+    );
+  }
+
+  if (activeTab === "analytics") {
+  return (
+    <>
+      <AnalyticsScreen />
+      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+    </>
     );
   }
 
