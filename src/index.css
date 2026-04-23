@@ -77,3 +77,21 @@ textarea {
 .pb-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
+
+.analytics-chart-shell,
+.analytics-chart-shell * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.analytics-chart-shell .recharts-wrapper:focus,
+.analytics-chart-shell .recharts-surface:focus,
+.analytics-chart-shell .recharts-sector:focus,
+.analytics-chart-shell .recharts-pie-sector:focus,
+.analytics-chart-shell .recharts-rectangle:focus,
+.analytics-chart-shell .recharts-layer:focus {
+  outline: none !important;
+}
+
+.analytics-chart-shell svg {
+  overflow: visible;
+}

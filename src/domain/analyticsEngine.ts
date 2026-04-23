@@ -1,7 +1,5 @@
 import type { Expense, ExpenseCategoryItem } from "@/hooks/useFinanceStore";
 
-export type AnalyticsRange = "week" | "period";
-
 export type AnalyticsCategoryItem = {
   id: string;
   name: string;
@@ -19,17 +17,38 @@ export type AnalyticsSummary = {
   chartCategories: AnalyticsCategoryItem[];
 };
 
+export type SpendingRhythmItem = {
+  key: number;
+  label: string;
+  amount: number;
+  percent: number;
+  isPeak: boolean;
+};
+
+export type AnalyticsAdvice = {
+  title: string;
+  description: string;
+  tone: "neutral" | "positive" | "warning";
+};
+
 const CATEGORY_COLORS = [
-  "#FF6B6B", // coral
-  "#A855F7", // violet
-  "#38BDF8", // sky
-  "#FB923C", // orange
-  "#14B8A6", // teal
-  "#F472B6", // pink
+  "#FF6B6B",
+  "#A855F7",
+  "#38BDF8",
+  "#FB923C",
+  "#14B8A6",
+  "#F472B6",
 ];
+
+const DAY_LABELS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 
 function round1(value: number) {
   return Number(value.toFixed(1));
+}
+
+function getMondayBasedDayIndex(dateInput: string | number | Date) {
+  const day = new Date(dateInput).getDay(); // 0 = Sunday
+  return day === 0 ? 6 : day - 1;
 }
 
 export function buildAnalyticsSummary(params: {
@@ -117,5 +136,111 @@ export function buildAnalyticsSummary(params: {
     topCategoryName: categoriesSorted[0]?.name ?? null,
     categories: categoriesSorted,
     chartCategories,
+  };
+}
+
+export function buildSpendingRhythm(params: {
+  expenses: Expense[];
+  rangeDays: number;
+}): {
+  days: SpendingRhythmItem[];
+  averagePerDay: number;
+  peakDayLabel: string | null;
+  peakDayShare: number;
+} {
+  const { expenses, rangeDays } = params;
+
+  const totals = new Array(7).fill(0);
+
+  for (const expense of expenses) {
+    const dayIndex = getMondayBasedDayIndex(expense.createdAt);
+    totals[dayIndex] += expense.amount;
+  }
+
+  const maxAmount = Math.max(...totals, 0);
+  const totalAmount = totals.reduce((sum, value) => sum + value, 0);
+  const peakDayIndex = totals.findIndex((value) => value === maxAmount && value > 0);
+
+  const days: SpendingRhythmItem[] = totals.map((amount, index) => ({
+    key: index,
+    label: DAY_LABELS[index],
+    amount: round1(amount),
+    percent: maxAmount > 0 ? round1((amount / maxAmount) * 100) : 0,
+    isPeak: index === peakDayIndex && amount > 0,
+  }));
+
+  return {
+    days,
+    averagePerDay: rangeDays > 0 ? round1(totalAmount / rangeDays) : 0,
+    peakDayLabel: peakDayIndex >= 0 ? DAY_LABELS[peakDayIndex] : null,
+    peakDayShare: totalAmount > 0 && peakDayIndex >= 0
+      ? round1((totals[peakDayIndex] / totalAmount) * 100)
+      : 0,
+  };
+}
+
+export function buildAnalyticsAdvice(params: {
+  periodDelta: number;
+  summary: AnalyticsSummary;
+  rhythm: {
+    peakDayLabel: string | null;
+    peakDayShare: number;
+  };
+}): AnalyticsAdvice {
+  const { periodDelta, summary, rhythm } = params;
+
+  if (summary.categories.length === 0) {
+    return {
+      title: "Совет",
+      description: "Добавь несколько расходов, чтобы увидеть структуру трат и рекомендации.",
+      tone: "neutral",
+    };
+  }
+
+  const topCategory = summary.categories[0];
+  const topCategoryShare = topCategory?.share ?? 0;
+
+  if (periodDelta < 0 && topCategoryShare >= 35) {
+    return {
+      title: "Совет",
+      description: `Сейчас есть перерасход. Начни с категории «${topCategory.name}» — она занимает ${topCategoryShare.toFixed(
+        0
+      )}% всех расходов и сильнее всего влияет на баланс.`,
+      tone: "warning",
+    };
+  }
+
+  if (periodDelta < 0 && summary.top3Share >= 75) {
+    return {
+      title: "Совет",
+      description: `Траты сильно сконцентрированы: топ-3 категории уже занимают ${summary.top3Share.toFixed(
+        0
+      )}% всех расходов. Попробуй сократить хотя бы одну из них.`,
+      tone: "warning",
+    };
+  }
+
+  if (rhythm.peakDayLabel && rhythm.peakDayShare >= 35) {
+    return {
+      title: "Совет",
+      description: `Самый активный день по тратам — ${rhythm.peakDayLabel}. На него приходится ${rhythm.peakDayShare.toFixed(
+        0
+      )}% расходов. Проверь, не возникает ли основной перерасход именно в этот день.`,
+      tone: "neutral",
+    };
+  }
+
+  if (periodDelta >= 0 && summary.top3Share <= 70) {
+    return {
+      title: "Совет",
+      description: "Расходы распределены достаточно ровно — баланс пока сохраняется без явного перекоса в одну категорию.",
+      tone: "positive",
+    };
+  }
+
+  return {
+    title: "Совет",
+    description: `Сильнее всего на бюджет влияет категория «${summary.topCategoryName ?? "Без категории"}». Следи за ней в первую очередь — это даст самый заметный эффект.`,
+    tone: "neutral",
   };
 }
