@@ -18,11 +18,18 @@ export type AnalyticsSummary = {
 };
 
 export type SpendingRhythmItem = {
-  key: number;
+  key: string;
   label: string;
   amount: number;
-  percent: number;
   isPeak: boolean;
+};
+
+export type SpendingRhythmSummary = {
+  items: SpendingRhythmItem[];
+  averageLabel: string;
+  averageAmount: number;
+  peakLabel: string | null;
+  peakShare: number;
 };
 
 export type AnalyticsAdvice = {
@@ -47,8 +54,21 @@ function round1(value: number) {
 }
 
 function getMondayBasedDayIndex(dateInput: string | number | Date) {
-  const day = new Date(dateInput).getDay(); // 0 = Sunday
+  const day = new Date(dateInput).getDay();
   return day === 0 ? 6 : day - 1;
+}
+
+function startOfDayTs(dateInput: string | number | Date) {
+  const date = new Date(dateInput);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function formatWeekRangeLabel(start: Date, end: Date) {
+  const sameMonth = start.getMonth() === end.getMonth();
+  if (sameMonth) {
+    return `${start.getDate()}–${end.getDate()}`;
+  }
+  return `${start.getDate()}.${start.getMonth() + 1}–${end.getDate()}.${end.getMonth() + 1}`;
 }
 
 export function buildAnalyticsSummary(params: {
@@ -139,43 +159,107 @@ export function buildAnalyticsSummary(params: {
   };
 }
 
-export function buildSpendingRhythm(params: {
+export function buildWeekSpendingRhythm(params: {
   expenses: Expense[];
-  rangeDays: number;
-}): {
-  days: SpendingRhythmItem[];
-  averagePerDay: number;
-  peakDayLabel: string | null;
-  peakDayShare: number;
-} {
-  const { expenses, rangeDays } = params;
-
+}): SpendingRhythmSummary {
   const totals = new Array(7).fill(0);
 
-  for (const expense of expenses) {
+  for (const expense of params.expenses) {
     const dayIndex = getMondayBasedDayIndex(expense.createdAt);
     totals[dayIndex] += expense.amount;
   }
 
-  const maxAmount = Math.max(...totals, 0);
   const totalAmount = totals.reduce((sum, value) => sum + value, 0);
-  const peakDayIndex = totals.findIndex((value) => value === maxAmount && value > 0);
+  const maxAmount = Math.max(...totals, 0);
+  const peakIndex = totals.findIndex((value) => value === maxAmount && value > 0);
 
-  const days: SpendingRhythmItem[] = totals.map((amount, index) => ({
-    key: index,
+  const items: SpendingRhythmItem[] = totals.map((amount, index) => ({
+    key: `day-${index}`,
     label: DAY_LABELS[index],
     amount: round1(amount),
-    percent: maxAmount > 0 ? round1((amount / maxAmount) * 100) : 0,
-    isPeak: index === peakDayIndex && amount > 0,
+    isPeak: index === peakIndex && amount > 0,
   }));
 
   return {
-    days,
-    averagePerDay: rangeDays > 0 ? round1(totalAmount / rangeDays) : 0,
-    peakDayLabel: peakDayIndex >= 0 ? DAY_LABELS[peakDayIndex] : null,
-    peakDayShare: totalAmount > 0 && peakDayIndex >= 0
-      ? round1((totals[peakDayIndex] / totalAmount) * 100)
-      : 0,
+    items,
+    averageLabel: "в день",
+    averageAmount: round1(totalAmount / 7),
+    peakLabel: peakIndex >= 0 ? DAY_LABELS[peakIndex] : null,
+    peakShare:
+      totalAmount > 0 && peakIndex >= 0
+        ? round1((totals[peakIndex] / totalAmount) * 100)
+        : 0,
+  };
+}
+
+export function buildPeriodSpendingRhythm(params: {
+  expenses: Expense[];
+  cycleStart: Date;
+  nextSalaryDate: Date;
+}): SpendingRhythmSummary {
+  const cycleStartTs = startOfDayTs(params.cycleStart);
+  const cycleEndTs = startOfDayTs(params.nextSalaryDate);
+
+  const weekRanges: Array<{ start: Date; end: Date; amount: number }> = [];
+  let cursor = new Date(cycleStartTs);
+
+  while (cursor.getTime() < cycleEndTs) {
+    const start = new Date(cursor);
+    const end = new Date(cursor);
+    end.setDate(end.getDate() + 6);
+
+    if (end.getTime() >= cycleEndTs) {
+      end.setTime(cycleEndTs - 1);
+    }
+
+    weekRanges.push({
+      start,
+      end,
+      amount: 0,
+    });
+
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  for (const expense of params.expenses) {
+    const expenseTs = startOfDayTs(expense.createdAt);
+    const bucket = weekRanges.find(
+      (range) =>
+        expenseTs >= startOfDayTs(range.start) &&
+        expenseTs <= startOfDayTs(range.end)
+    );
+
+    if (bucket) {
+      bucket.amount += expense.amount;
+    }
+  }
+
+  const totalAmount = weekRanges.reduce((sum, item) => sum + item.amount, 0);
+  const maxAmount = Math.max(...weekRanges.map((item) => item.amount), 0);
+  const peakIndex = weekRanges.findIndex(
+    (item) => item.amount === maxAmount && item.amount > 0
+  );
+
+  const items: SpendingRhythmItem[] = weekRanges.map((item, index) => ({
+    key: `week-${index + 1}`,
+    label: `Нед ${index + 1}`,
+    amount: round1(item.amount),
+    isPeak: index === peakIndex && item.amount > 0,
+  }));
+
+  return {
+    items,
+    averageLabel: "в неделю",
+    averageAmount:
+      weekRanges.length > 0 ? round1(totalAmount / weekRanges.length) : 0,
+    peakLabel:
+      peakIndex >= 0
+        ? formatWeekRangeLabel(weekRanges[peakIndex].start, weekRanges[peakIndex].end)
+        : null,
+    peakShare:
+      totalAmount > 0 && peakIndex >= 0
+        ? round1((weekRanges[peakIndex].amount / totalAmount) * 100)
+        : 0,
   };
 }
 
@@ -183,8 +267,8 @@ export function buildAnalyticsAdvice(params: {
   periodDelta: number;
   summary: AnalyticsSummary;
   rhythm: {
-    peakDayLabel: string | null;
-    peakDayShare: number;
+    peakLabel: string | null;
+    peakShare: number;
   };
 }): AnalyticsAdvice {
   const { periodDelta, summary, rhythm } = params;
@@ -220,12 +304,12 @@ export function buildAnalyticsAdvice(params: {
     };
   }
 
-  if (rhythm.peakDayLabel && rhythm.peakDayShare >= 35) {
+  if (rhythm.peakLabel && rhythm.peakShare >= 35) {
     return {
       title: "Совет",
-      description: `Самый активный день по тратам — ${rhythm.peakDayLabel}. На него приходится ${rhythm.peakDayShare.toFixed(
+      description: `Самый активный период — ${rhythm.peakLabel}. На него приходится ${rhythm.peakShare.toFixed(
         0
-      )}% расходов. Проверь, не возникает ли основной перерасход именно в этот день.`,
+      )}% расходов. Проверь, не возникает ли основной перерасход именно здесь.`,
       tone: "neutral",
     };
   }

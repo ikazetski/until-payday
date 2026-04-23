@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Lightbulb } from "lucide-react";
-import { format, differenceInCalendarDays } from "date-fns";
+import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
   Bar,
@@ -19,8 +19,10 @@ import { useFinanceStore } from "@/hooks/useFinanceStore";
 import {
   buildAnalyticsAdvice,
   buildAnalyticsSummary,
-  buildSpendingRhythm,
+  buildPeriodSpendingRhythm,
+  buildWeekSpendingRhythm,
   type AnalyticsCategoryItem,
+  type SpendingRhythmItem,
 } from "@/domain/analyticsEngine";
 
 type AnalyticsMode = "week" | "period";
@@ -69,9 +71,16 @@ function ChartTooltip({
   const item = payload[0].payload;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900 px-3 py-2 shadow-[0_14px_30px_rgba(15,23,42,0.28)]">
-      <p className="text-sm font-medium text-white">{item.name}</p>
-      <p className="text-xs text-white/70 mt-1">
+    <div
+      className="rounded-2xl px-3 py-2 shadow-[0_14px_30px_rgba(15,23,42,0.22)] border"
+      style={{
+        backgroundColor: item.color,
+        borderColor: item.color,
+        color: "#ffffff",
+      }}
+    >
+      <p className="text-sm font-semibold">{item.name}</p>
+      <p className="text-xs mt-1 text-white/90">
         {formatMoneyWithCurrency(item.amount, currency as never)} · {item.share}%
       </p>
     </div>
@@ -88,6 +97,7 @@ function RhythmTooltip({
     payload: {
       label: string;
       amount: number;
+      isPeak: boolean;
     };
   }>;
   currency: string;
@@ -95,11 +105,15 @@ function RhythmTooltip({
   if (!active || !payload?.length) return null;
 
   const item = payload[0].payload;
+  const bg = item.isPeak ? "#4F46E5" : "#818CF8";
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900 px-3 py-2 shadow-[0_14px_30px_rgba(15,23,42,0.28)]">
-      <p className="text-sm font-medium text-white">{item.label}</p>
-      <p className="text-xs text-white/70 mt-1">
+    <div
+      className="rounded-2xl px-3 py-2 shadow-[0_14px_30px_rgba(15,23,42,0.18)]"
+      style={{ backgroundColor: bg, color: "#fff" }}
+    >
+      <p className="text-sm font-semibold">{item.label}</p>
+      <p className="text-xs mt-1 text-white/90">
         {formatMoneyWithCurrency(item.amount, currency as never)}
       </p>
     </div>
@@ -180,7 +194,7 @@ function DonutChart({
   }));
 
   return (
-    <div className="analytics-chart-shell relative h-[248px] w-full">
+    <div className="analytics-chart-shell relative h-[280px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <defs>
@@ -207,8 +221,8 @@ function DonutChart({
             data={chartData}
             dataKey="value"
             nameKey="name"
-            innerRadius={62}
-            outerRadius={88}
+            innerRadius={78}
+            outerRadius={108}
             paddingAngle={3}
             stroke="rgba(255,255,255,0.92)"
             strokeWidth={3}
@@ -231,15 +245,15 @@ function DonutChart({
           <Tooltip
             content={<ChartTooltip currency={currency} />}
             cursor={false}
-            wrapperStyle={{ outline: "none" }}
+            wrapperStyle={{ outline: "none", zIndex: 30 }}
           />
         </PieChart>
       </ResponsiveContainer>
 
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <div className="rounded-full border border-border/60 bg-background/95 px-4 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+        <div className="rounded-full border border-border/60 bg-background/95 px-5 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm max-w-[170px]">
           <p className="text-[11px] text-muted-foreground text-center">{centerLabel}</p>
-          <p className="text-[1.15rem] font-bold text-center leading-tight mt-0.5">
+          <p className="text-[1.05rem] font-bold text-center leading-tight mt-0.5 break-words">
             {centerValue}
           </p>
         </div>
@@ -285,20 +299,19 @@ export function AnalyticsScreen() {
     });
   }, [selectedExpenses, store.expenseCategories]);
 
-  const rangeDays =
-    mode === "period"
-      ? Math.max(
-          differenceInCalendarDays(store.nextSalaryDate, store.currentCycleStart),
-          1
-        )
-      : 7;
-
   const rhythm = useMemo(() => {
-    return buildSpendingRhythm({
+    if (mode === "week") {
+      return buildWeekSpendingRhythm({
+        expenses: selectedExpenses,
+      });
+    }
+
+    return buildPeriodSpendingRhythm({
       expenses: selectedExpenses,
-      rangeDays,
+      cycleStart: store.currentCycleStart,
+      nextSalaryDate: store.nextSalaryDate,
     });
-  }, [selectedExpenses, rangeDays]);
+  }, [mode, selectedExpenses, store.currentCycleStart, store.nextSalaryDate]);
 
   const periodDelta =
     mode === "period"
@@ -374,14 +387,14 @@ export function AnalyticsScreen() {
         <h1 className="text-xl font-bold tracking-tight">Аналитика</h1>
         <p className="text-sm text-muted-foreground mt-1">Структура расходов</p>
 
-        <div className="inline-flex rounded-2xl bg-secondary p-1 mt-4">
+        <div className="mt-4 rounded-[24px] bg-secondary p-1 grid grid-cols-2 gap-1 w-full max-w-[340px]">
           <button
             onClick={() => setMode("week")}
             className={cn(
-              "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+              "h-12 rounded-[20px] text-base font-medium transition-all",
               mode === "week"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground"
             )}
           >
             Неделя
@@ -389,10 +402,10 @@ export function AnalyticsScreen() {
           <button
             onClick={() => setMode("period")}
             className={cn(
-              "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+              "h-12 rounded-[20px] text-base font-medium transition-all",
               mode === "period"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground"
             )}
           >
             Период
@@ -413,18 +426,18 @@ export function AnalyticsScreen() {
           currency={store.currency}
         />
 
-        <div className="flex flex-wrap gap-2 justify-center mt-3">
+        <div className="flex flex-wrap gap-2 justify-center mt-4">
           {summary.chartCategories.map((item) => (
             <div
               key={item.id}
-              className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 shadow-[0_3px_10px_rgba(15,23,42,0.04)]"
+              className="inline-flex items-center gap-2 rounded-full px-3 py-2 shadow-[0_4px_12px_rgba(15,23,42,0.04)]"
               style={{
-                borderColor: `${item.color}55`,
-                backgroundColor: `${item.color}10`,
+                backgroundColor: mixHexWithWhite(item.color, 0.88),
+                border: `1px solid ${mixHexWithWhite(item.color, 0.55)}`,
               }}
             >
               <span
-                className="h-2.5 w-2.5 rounded-full shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.7)]"
+                className="h-2.5 w-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: item.color }}
               />
               <span className="text-xs font-medium">{item.name}</span>
@@ -478,7 +491,10 @@ export function AnalyticsScreen() {
           {summary.categories.map((item, index) => (
             <div
               key={item.id}
-              className="rounded-2xl border border-border/55 bg-background/55 px-3 py-3"
+              className={cn(
+                "px-1 py-3",
+                index !== summary.categories.length - 1 && "border-b border-border/60"
+              )}
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3 min-w-0">
@@ -533,16 +549,16 @@ export function AnalyticsScreen() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            ø {formatMoneyWithCurrency(rhythm.averagePerDay, store.currency)}/день
+            В среднем {formatMoneyWithCurrency(rhythm.averageAmount, store.currency)} {rhythm.averageLabel}
           </p>
         </div>
 
         <div className="analytics-chart-shell h-[180px] -mx-2">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={rhythm.days}
+              data={rhythm.items}
               margin={{ top: 16, right: 8, left: 8, bottom: 0 }}
-              barCategoryGap={22}
+              barCategoryGap={10}
             >
               <defs>
                 <linearGradient id="rhythm-bar-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -565,11 +581,11 @@ export function AnalyticsScreen() {
               <Tooltip
                 content={<RhythmTooltip currency={store.currency} />}
                 cursor={false}
-                wrapperStyle={{ outline: "none" }}
+                wrapperStyle={{ outline: "none", zIndex: 30 }}
               />
 
-              <Bar dataKey="amount" radius={[10, 10, 10, 10]} maxBarSize={24}>
-                {rhythm.days.map((day) => (
+              <Bar dataKey="amount" radius={[12, 12, 12, 12]} maxBarSize={36}>
+                {rhythm.items.map((day: SpendingRhythmItem) => (
                   <Cell
                     key={day.key}
                     fill={day.isPeak ? "url(#rhythm-peak-gradient)" : "url(#rhythm-bar-gradient)"}
@@ -594,14 +610,28 @@ export function AnalyticsScreen() {
       >
         <div className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-white/30 blur-sm" />
 
-        <div className="relative flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-background shadow-[0_8px_20px_rgba(15,23,42,0.08)] flex items-center justify-center shrink-0">
-            <Lightbulb className="w-5 h-5 text-indigo-600" />
+        <div className="relative">
+          <div className="w-12 h-12 rounded-full bg-background shadow-[0_8px_20px_rgba(15,23,42,0.08)] flex items-center justify-center">
+            <Lightbulb
+              className={cn(
+                "w-5 h-5",
+                advice.tone === "warning" && "text-rose-600",
+                advice.tone === "positive" && "text-indigo-600",
+                advice.tone === "neutral" && "text-indigo-600"
+              )}
+            />
           </div>
 
-          <div>
+          <div className="mt-4">
             <p className="text-[1.1rem] font-semibold">{advice.title}</p>
-            <p className="text-[1rem] text-indigo-700/90 mt-2 leading-relaxed">
+            <p
+              className={cn(
+                "text-[1rem] mt-2 leading-relaxed",
+                advice.tone === "warning" && "text-rose-700/90",
+                advice.tone === "positive" && "text-indigo-700/90",
+                advice.tone === "neutral" && "text-indigo-700/90"
+              )}
+            >
               {advice.description}
             </p>
           </div>
