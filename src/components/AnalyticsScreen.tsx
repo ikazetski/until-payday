@@ -236,6 +236,9 @@ function DonutChart({
             onClick={(_, index) => setActiveIndex(index)}
             className="drop-shadow-[0_10px_24px_rgba(15,23,42,0.10)]"
             rootTabIndex={-1}
+            isAnimationActive
+            animationDuration={260}
+            animationBegin={0}
           >
             {chartData.map((entry) => (
               <Cell key={entry.id} fill={`url(#${entry.gradientId})`} />
@@ -387,7 +390,7 @@ export function AnalyticsScreen() {
         <h1 className="text-xl font-bold tracking-tight">Аналитика</h1>
         <p className="text-sm text-muted-foreground mt-1">Структура расходов</p>
 
-        <div className="mt-4 rounded-[24px] bg-secondary p-1 grid grid-cols-2 gap-1 w-full max-w-[340px]">
+        <div className="mt-4 w-full rounded-[24px] bg-secondary p-1 grid grid-cols-2 gap-1">
           <button
             onClick={() => setMode("week")}
             className={cn(
@@ -399,6 +402,7 @@ export function AnalyticsScreen() {
           >
             Неделя
           </button>
+
           <button
             onClick={() => setMode("period")}
             className={cn(
@@ -420,6 +424,7 @@ export function AnalyticsScreen() {
         </div>
 
         <DonutChart
+          key={`${mode}-${summary.chartCategories.map((item) => item.id).join("-")}`}
           items={summary.chartCategories}
           centerLabel="Всего"
           centerValue={formatMoneyWithCurrency(summary.totalAmount, store.currency)}
@@ -548,7 +553,7 @@ export function AnalyticsScreen() {
             </p>
           </div>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground text-right leading-[1.35] pt-[1px] shrink-0">
             В среднем {formatMoneyWithCurrency(rhythm.averageAmount, store.currency)} {rhythm.averageLabel}
           </p>
         </div>
@@ -575,7 +580,7 @@ export function AnalyticsScreen() {
                 dataKey="label"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                tick={{ fill: "hsl(var(--foreground) / 0.74)", fontSize: 12, fontWeight: 500 }}
               />
 
               <Tooltip
