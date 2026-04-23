@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Lightbulb, TrendingDown, TrendingUp } from "lucide-react";
+import { Lightbulb } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
@@ -171,7 +171,7 @@ function DonutChart({
   centerValue: string;
   currency: string;
 }) {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
 
   const chartData = items.map((item, index) => ({
     ...item,
@@ -212,12 +212,16 @@ function DonutChart({
             paddingAngle={3}
             stroke="rgba(255,255,255,0.92)"
             strokeWidth={3}
-            activeIndex={activeIndex ?? undefined}
-            activeShape={renderActiveShape}
+            shape={(props: any) =>
+              renderPieShape({
+              ...props,
+              isActive: props.index === activeIndex,
+              })
+            }
             onMouseEnter={(_, index) => setActiveIndex(index)}
-            onMouseLeave={() => setActiveIndex(null)}
             onClick={(_, index) => setActiveIndex(index)}
             className="drop-shadow-[0_10px_24px_rgba(15,23,42,0.10)]"
+            rootTabIndex={-1}
           >
             {chartData.map((entry) => (
               <Cell key={entry.id} fill={`url(#${entry.gradientId})`} />
