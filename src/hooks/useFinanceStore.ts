@@ -16,6 +16,13 @@ import type {
   FixedExpense,
 } from "@/domain/financeTypes";
 
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_MONTHLY_BUDGET,
+  DEFAULT_SALARY_DAY,
+} from "@/domain/financeDefaults";
+
 export type {
   CurrencyCode,
   Expense,
@@ -23,14 +30,6 @@ export type {
   ExpenseCategoryItem,
   FixedExpense,
 } from "@/domain/financeTypes";
-
-const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryItem[] = [
-  { id: "food", name: "Еда", system: true },
-  { id: "sport", name: "Спорт", system: true },
-  { id: "fuel", name: "Топливо", system: true },
-  { id: "entertainment", name: "Развлечения", system: true },
-  { id: "other", name: "Другое", system: true },
-];
 
 type Status = "green" | "yellow" | "red";
 
@@ -142,9 +141,9 @@ function backupLegacyStorageIfNeeded(raw: string) {
 
 function loadInitialData(): PersistedData {
   const fallback: PersistedData = {
-    monthlyBudget: 0,
-    salaryDay: 25,
-    currency: "BYN",
+    monthlyBudget: DEFAULT_MONTHLY_BUDGET,
+    salaryDay: DEFAULT_SALARY_DAY,
+    currency: DEFAULT_CURRENCY,
     fixedExpenses: [],
     recentExpenses: [],
     trackingStartedAt: startOfToday().toISOString(),

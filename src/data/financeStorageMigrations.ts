@@ -10,9 +10,12 @@ import {
   type PersistedFinanceDataV1,
 } from "./financeStorageTypes";
 
-const DEFAULT_MONTHLY_BUDGET = 0;
-const DEFAULT_SALARY_DAY = 25;
-const DEFAULT_CURRENCY: CurrencyCode = "BYN";
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_MONTHLY_BUDGET,
+  DEFAULT_SALARY_DAY,
+} from "@/domain/financeDefaults";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -64,7 +67,7 @@ export function createDefaultPersistedFinanceData(): PersistedFinanceDataV1 {
       fixedExpenses: [],
       recentExpenses: [],
       trackingStartedAt: new Date().toISOString(),
-      expenseCategories: [],
+      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
     },
   };
 }

@@ -3,6 +3,7 @@ import {
   createDefaultPersistedFinanceData,
   migrateFinanceStorage,
 } from "@/data/financeStorageMigrations";
+import { DEFAULT_EXPENSE_CATEGORIES } from "@/domain/financeDefaults";
 
 describe("financeStorageMigrations", () => {
   it("migrates legacy storage without schemaVersion to v1", () => {
@@ -71,7 +72,7 @@ describe("financeStorageMigrations", () => {
     expect(migrated.data.currency).toBe("BYN");
     expect(migrated.data.fixedExpenses).toEqual([]);
     expect(migrated.data.recentExpenses).toEqual([]);
-    expect(migrated.data.expenseCategories).toEqual([]);
+    expect(migrated.data.expenseCategories).toEqual(DEFAULT_EXPENSE_CATEGORIES);
     expect(typeof migrated.data.trackingStartedAt).toBe("string");
   });
 
