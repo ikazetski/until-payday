@@ -201,7 +201,7 @@ export function buildPeriodSpendingRhythm(params: {
   const cycleEndTs = startOfDayTs(params.nextSalaryDate);
 
   const weekRanges: Array<{ start: Date; end: Date; amount: number }> = [];
-  let cursor = new Date(cycleStartTs);
+  const cursor = new Date(cycleStartTs);
 
   while (cursor.getTime() < cycleEndTs) {
     const start = new Date(cursor);

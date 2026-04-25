@@ -115,6 +115,7 @@ export function SettingsSheet({
   useEffect(() => {
     if (open) {
       const initial = getInitialMonthOffsetAndDay(salaryDay);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBudgetValue(String(monthlyBudget));
       setSelectedMonthOffset(initial.monthOffset as 0 | 1);
       setSelectedDay(initial.day);
@@ -133,6 +134,7 @@ export function SettingsSheet({
 
   useEffect(() => {
     if (selectedDay > daysInSelectedMonth) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedDay(daysInSelectedMonth);
     }
   }, [selectedDay, daysInSelectedMonth]);

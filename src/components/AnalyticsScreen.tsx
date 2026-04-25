@@ -120,7 +120,23 @@ function RhythmTooltip({
   );
 }
 
-function renderPieShape(props: any) {
+type PieShapeProps = {
+  cx?: number;
+  cy?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  startAngle?: number;
+  endAngle?: number;
+  fill?: string;
+  index?: number;
+  payload?: AnalyticsCategoryItem & {
+    value?: number;
+    gradientId?: string;
+  };
+  isActive?: boolean;
+};
+
+function renderPieShape(props: PieShapeProps) {
   const {
     cx,
     cy,
@@ -133,44 +149,46 @@ function renderPieShape(props: any) {
     isActive,
   } = props;
 
-  if (isActive) {
-    return (
-      <g filter="url(#analytics-donut-active-shadow)">
-        <Sector
-          cx={cx}
-          cy={cy}
-          innerRadius={innerRadius}
-          outerRadius={outerRadius + 6}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          fill={fill}
-          cornerRadius={10}
-        />
-        <Sector
-          cx={cx}
-          cy={cy}
-          innerRadius={outerRadius + 7}
-          outerRadius={outerRadius + 10}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          fill={mixHexWithWhite(payload.color, 0.35)}
-          opacity={0.55}
-        />
-      </g>
-    );
+  if (
+    cx === undefined ||
+    cy === undefined ||
+    innerRadius === undefined ||
+    outerRadius === undefined ||
+    startAngle === undefined ||
+    endAngle === undefined ||
+    payload === undefined
+  ) {
+    return <g />;
   }
 
+  const safeFill = fill ?? payload.color ?? "#94a3b8";
+  const activeOuterRadius = isActive ? outerRadius + 8 : outerRadius;
+
   return (
-    <Sector
-      cx={cx}
-      cy={cy}
-      innerRadius={innerRadius}
-      outerRadius={outerRadius}
-      startAngle={startAngle}
-      endAngle={endAngle}
-      fill={fill}
-      cornerRadius={10}
-    />
+    <g>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={activeOuterRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={safeFill}
+        cornerRadius={10}
+      />
+
+      {isActive ? (
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={outerRadius + 10}
+          outerRadius={outerRadius + 13}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={safeFill}
+        />
+      ) : null}
+    </g>
   );
 }
 
@@ -226,7 +244,7 @@ function DonutChart({
             paddingAngle={3}
             stroke="rgba(255,255,255,0.92)"
             strokeWidth={3}
-            shape={(props: any) =>
+            shape={(props: PieShapeProps) =>
               renderPieShape({
               ...props,
               isActive: props.index === activeIndex,

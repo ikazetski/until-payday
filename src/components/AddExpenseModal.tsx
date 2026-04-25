@@ -72,22 +72,23 @@ export function AddExpenseModal({
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
-  useEffect(() => {
-    if (!open) {
-      setAmount("");
-      setSelectedCategory("other");
-      setIsAddingCategory(false);
-      setNewCategoryName("");
-      return;
-    }
+useEffect(() => {
+  if (!open) {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAmount("");
+    setSelectedCategory("other");
+    setIsAddingCategory(false);
+    setNewCategoryName("");
+    return;
+  }
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+  const previousOverflow = document.body.style.overflow;
+  document.body.style.overflow = "hidden";
 
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
+  return () => {
+    document.body.style.overflow = previousOverflow;
+  };
+}, [open]);
 
   const canSubmit = useMemo(() => {
     const parsed = Number(amount.replace(",", "."));

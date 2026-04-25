@@ -16,9 +16,10 @@ export function CustomExpenseModal({
 
   useEffect(() => {
     if (!open) {
-      setAmount("");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+     setAmount("");
     }
-  }, [open]);
+}, [open]);
 
   const handleSubmit = () => {
     const parsedAmount = Number(amount);
