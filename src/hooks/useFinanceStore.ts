@@ -1,12 +1,9 @@
 import { create } from "zustand";
 import { roundMoney, startOfDay } from "@/lib/finance";
 import { calculateFinance } from "@/domain/financeEngine";
-import {
-  FINANCE_STORAGE_BACKUP_KEY,
-  FINANCE_STORAGE_KEY,
-  type PersistedFinanceDataV1,
-} from "@/data/financeStorageTypes";
-import { migrateFinanceStorage } from "@/data/financeStorageMigrations";
+
+import { localStorageFinanceRepository } from "@/data/localStorageFinanceRepository";
+import type { PersistedFinanceState } from "@/data/financeRepository";
 
 import type {
   CurrencyCode,
@@ -15,13 +12,6 @@ import type {
   ExpenseCategoryItem,
   FixedExpense,
 } from "@/domain/financeTypes";
-
-import {
-  DEFAULT_CURRENCY,
-  DEFAULT_EXPENSE_CATEGORIES,
-  DEFAULT_MONTHLY_BUDGET,
-  DEFAULT_SALARY_DAY,
-} from "@/domain/financeDefaults";
 
 export type {
   CurrencyCode,
@@ -33,15 +23,7 @@ export type {
 
 type Status = "green" | "yellow" | "red";
 
-type PersistedData = {
-  monthlyBudget: number;
-  salaryDay: number;
-  currency: CurrencyCode;
-  fixedExpenses: FixedExpense[];
-  recentExpenses: Expense[];
-  trackingStartedAt: string;
-  expenseCategories: ExpenseCategoryItem[];
-};
+type PersistedData = PersistedFinanceState;
 
 type SettingsSnapshot = {
   monthlyBudget: number;
@@ -105,95 +87,7 @@ function startOfToday() {
   return startOfDay(new Date());
 }
 
-function normalizeExpenseCategories(
-  value: unknown
-): ExpenseCategoryItem[] {
-  if (!Array.isArray(value)) {
-    return DEFAULT_EXPENSE_CATEGORIES;
-  }
-
-  const normalized = value.filter(
-    (item): item is ExpenseCategoryItem =>
-      typeof item === "object" &&
-      item !== null &&
-      typeof item.id === "string" &&
-      item.id.trim().length > 0 &&
-      typeof item.name === "string" &&
-      item.name.trim().length > 0
-  );
-
-  if (normalized.length === 0) {
-    return DEFAULT_EXPENSE_CATEGORIES;
-  }
-
-  return normalized;
-}
-
-function backupLegacyStorageIfNeeded(raw: string) {
-  if (typeof window === "undefined") return;
-
-  const existingBackup = localStorage.getItem(FINANCE_STORAGE_BACKUP_KEY);
-
-  if (!existingBackup) {
-    localStorage.setItem(FINANCE_STORAGE_BACKUP_KEY, raw);
-  }
-}
-
-function loadInitialData(): PersistedData {
-  const fallback: PersistedData = {
-    monthlyBudget: DEFAULT_MONTHLY_BUDGET,
-    salaryDay: DEFAULT_SALARY_DAY,
-    currency: DEFAULT_CURRENCY,
-    fixedExpenses: [],
-    recentExpenses: [],
-    trackingStartedAt: startOfToday().toISOString(),
-    expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
-  };
-
-  if (typeof window === "undefined") return fallback;
-
-  const raw = localStorage.getItem(FINANCE_STORAGE_KEY);
-
-  if (!raw) return fallback;
-
-  try {
-    const parsed = JSON.parse(raw);
-    const migrated = migrateFinanceStorage(parsed);
-
-    if (!("schemaVersion" in parsed)) {
-      backupLegacyStorageIfNeeded(raw);
-      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(migrated));
-    }
-
-    return {
-      ...migrated.data,
-      expenseCategories: normalizeExpenseCategories(
-        migrated.data.expenseCategories
-      ),
-    };
-  } catch {
-    backupLegacyStorageIfNeeded(raw);
-    return fallback;
-  }
-}
-
-function toPersistedFinanceDataV1(data: PersistedData): PersistedFinanceDataV1 {
-  return {
-    schemaVersion: 1,
-    data,
-  };
-}
-
-function saveData(data: PersistedData) {
-  if (typeof window === "undefined") return;
-
-  localStorage.setItem(
-    FINANCE_STORAGE_KEY,
-    JSON.stringify(toPersistedFinanceDataV1(data))
-  );
-}
-
-const initialData = loadInitialData();
+const initialData = localStorageFinanceRepository.load();
 const initialDerived = calculateFinance(initialData);
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
@@ -235,7 +129,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: [...current.expenseCategories, newCategory],
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,
@@ -264,7 +158,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,
@@ -285,7 +179,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,
@@ -313,7 +207,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,
@@ -342,7 +236,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,
@@ -363,7 +257,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,
@@ -384,7 +278,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,
@@ -405,7 +299,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(restoredData);
+    localStorageFinanceRepository.save(restoredData);
 
     set({
       ...restoredData,
@@ -445,7 +339,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       expenseCategories: current.expenseCategories,
     };
 
-    saveData(updatedData);
+    localStorageFinanceRepository.save(updatedData);
 
     set({
       ...updatedData,

@@ -1,11 +1,9 @@
-import type {
-  CurrencyCode,
-  Expense,
-  ExpenseCategoryItem,
-  FixedExpense,
-} from "@/domain/financeTypes";
+import type { PersistedFinanceState } from "@/data/financeRepository";
 
 export const FINANCE_STORAGE_KEY = "until-payday-finance";
+export const FINANCE_STORAGE_BACKUP_KEY =
+  "until-payday-finance-backup-before-v1";
+
 export const CURRENT_FINANCE_SCHEMA_VERSION = 1;
 
 export type LegacyFinanceStorageData = {
@@ -20,16 +18,5 @@ export type LegacyFinanceStorageData = {
 
 export type PersistedFinanceDataV1 = {
   schemaVersion: 1;
-  data: {
-    monthlyBudget: number;
-    salaryDay: number;
-    currency: CurrencyCode;
-    fixedExpenses: FixedExpense[];
-    recentExpenses: Expense[];
-    trackingStartedAt: string;
-    expenseCategories: ExpenseCategoryItem[];
-  };
+  data: PersistedFinanceState;
 };
-
-export const FINANCE_STORAGE_BACKUP_KEY =
-  "until-payday-finance-backup-before-v1";
