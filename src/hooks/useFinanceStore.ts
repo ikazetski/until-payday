@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { roundMoney, startOfDay } from "@/lib/finance";
 import { calculateFinance } from "@/domain/financeEngine";
+import {
+  FINANCE_STORAGE_BACKUP_KEY,
+  FINANCE_STORAGE_KEY,
+  type PersistedFinanceDataV1,
+} from "@/data/financeStorageTypes";
+import { migrateFinanceStorage } from "@/data/financeStorageMigrations";
 
 export type ExpenseCategory = string;
 
@@ -104,20 +110,8 @@ type FinanceStore = {
   startNewCycle: () => void;
 };
 
-const STORAGE_KEY = "until-payday-finance";
-
 function startOfToday() {
   return startOfDay(new Date());
-}
-
-function isValidCurrency(value: unknown): value is CurrencyCode {
-  return (
-    value === "BYN" ||
-    value === "EUR" ||
-    value === "USD" ||
-    value === "RUB" ||
-    value === "UAH"
-  );
 }
 
 function normalizeExpenseCategories(
@@ -144,6 +138,16 @@ function normalizeExpenseCategories(
   return normalized;
 }
 
+function backupLegacyStorageIfNeeded(raw: string) {
+  if (typeof window === "undefined") return;
+
+  const existingBackup = localStorage.getItem(FINANCE_STORAGE_BACKUP_KEY);
+
+  if (!existingBackup) {
+    localStorage.setItem(FINANCE_STORAGE_BACKUP_KEY, raw);
+  }
+}
+
 function loadInitialData(): PersistedData {
   const fallback: PersistedData = {
     monthlyBudget: 0,
@@ -157,50 +161,45 @@ function loadInitialData(): PersistedData {
 
   if (typeof window === "undefined") return fallback;
 
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(FINANCE_STORAGE_KEY);
+
   if (!raw) return fallback;
 
   try {
-    const parsed = JSON.parse(raw) as Partial<PersistedData>;
+    const parsed = JSON.parse(raw);
+    const migrated = migrateFinanceStorage(parsed);
+
+    if (!("schemaVersion" in parsed)) {
+      backupLegacyStorageIfNeeded(raw);
+      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(migrated));
+    }
 
     return {
-      monthlyBudget:
-        typeof parsed.monthlyBudget === "number"
-          ? parsed.monthlyBudget
-          : fallback.monthlyBudget,
-
-      salaryDay:
-        typeof parsed.salaryDay === "number"
-          ? parsed.salaryDay
-          : fallback.salaryDay,
-
-      currency: isValidCurrency(parsed.currency)
-        ? parsed.currency
-        : fallback.currency,
-
-      fixedExpenses: Array.isArray(parsed.fixedExpenses)
-        ? parsed.fixedExpenses
-        : fallback.fixedExpenses,
-
-      recentExpenses: Array.isArray(parsed.recentExpenses)
-        ? parsed.recentExpenses
-        : fallback.recentExpenses,
-
-      trackingStartedAt:
-        typeof parsed.trackingStartedAt === "string"
-          ? parsed.trackingStartedAt
-          : fallback.trackingStartedAt,
-
-      expenseCategories: normalizeExpenseCategories(parsed.expenseCategories),
+      ...migrated.data,
+      expenseCategories: normalizeExpenseCategories(
+        migrated.data.expenseCategories
+      ),
     };
   } catch {
+    backupLegacyStorageIfNeeded(raw);
     return fallback;
   }
 }
 
+function toPersistedFinanceDataV1(data: PersistedData): PersistedFinanceDataV1 {
+  return {
+    schemaVersion: 1,
+    data,
+  };
+}
+
 function saveData(data: PersistedData) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+  localStorage.setItem(
+    FINANCE_STORAGE_KEY,
+    JSON.stringify(toPersistedFinanceDataV1(data))
+  );
 }
 
 const initialData = loadInitialData();
