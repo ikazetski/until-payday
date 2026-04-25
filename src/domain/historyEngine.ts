@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import type { Expense } from "@/hooks/useFinanceStore";
+import type { Expense } from "@/domain/financeTypes";
 import {
   addDays,
   filterExpensesByRange,

@@ -1,4 +1,4 @@
-import type { Expense, ExpenseCategoryItem } from "@/hooks/useFinanceStore";
+import type { Expense, ExpenseCategoryItem } from "@/domain/financeTypes";
 
 export type AnalyticsCategoryItem = {
   id: string;

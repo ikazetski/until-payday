@@ -8,13 +8,21 @@ import {
 } from "@/data/financeStorageTypes";
 import { migrateFinanceStorage } from "@/data/financeStorageMigrations";
 
-export type ExpenseCategory = string;
+import type {
+  CurrencyCode,
+  Expense,
+  ExpenseCategory,
+  ExpenseCategoryItem,
+  FixedExpense,
+} from "@/domain/financeTypes";
 
-export type ExpenseCategoryItem = {
-  id: string;
-  name: string;
-  system?: boolean;
-};
+export type {
+  CurrencyCode,
+  Expense,
+  ExpenseCategory,
+  ExpenseCategoryItem,
+  FixedExpense,
+} from "@/domain/financeTypes";
 
 const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryItem[] = [
   { id: "food", name: "Еда", system: true },
@@ -23,22 +31,6 @@ const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryItem[] = [
   { id: "entertainment", name: "Развлечения", system: true },
   { id: "other", name: "Другое", system: true },
 ];
-
-export type Expense = {
-  id: string;
-  amount: number;
-  category: ExpenseCategory;
-  note?: string;
-  createdAt: string;
-};
-
-export type CurrencyCode = "BYN" | "EUR" | "USD" | "RUB" | "UAH";
-
-export type FixedExpense = {
-  id: string;
-  name: string;
-  amount: number;
-};
 
 type Status = "green" | "yellow" | "red";
 

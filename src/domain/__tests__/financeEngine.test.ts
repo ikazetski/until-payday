@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateFinance } from "@/domain/financeEngine";
-import type { Expense, FixedExpense } from "@/hooks/useFinanceStore";
+import type { Expense, FixedExpense } from "@/domain/financeTypes";
 
 function createExpense(
   id: string,

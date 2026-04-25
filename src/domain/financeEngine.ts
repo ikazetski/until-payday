@@ -1,4 +1,4 @@
-import type { Expense, FixedExpense, CurrencyCode } from "@/hooks/useFinanceStore";
+import type { Expense, FixedExpense, CurrencyCode } from "@/domain/financeTypes";
 import {
   addDays,
   countInclusiveDays,

@@ -3,7 +3,7 @@ import type {
   Expense,
   ExpenseCategoryItem,
   FixedExpense,
-} from "@/hooks/useFinanceStore";
+} from "@/domain/financeTypes";
 import {
   CURRENT_FINANCE_SCHEMA_VERSION,
   type LegacyFinanceStorageData,

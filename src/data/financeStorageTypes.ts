@@ -3,7 +3,7 @@ import type {
   Expense,
   ExpenseCategoryItem,
   FixedExpense,
-} from "@/hooks/useFinanceStore";
+} from "@/domain/financeTypes";
 
 export const FINANCE_STORAGE_KEY = "until-payday-finance";
 export const CURRENT_FINANCE_SCHEMA_VERSION = 1;

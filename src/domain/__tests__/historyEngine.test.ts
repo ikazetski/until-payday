@@ -3,7 +3,7 @@ import {
   buildMonthlyGroups,
   buildWeeklyGroups,
 } from "@/domain/historyEngine";
-import type { Expense } from "@/hooks/useFinanceStore";
+import type { Expense } from "@/domain/financeTypes";
 
 function createExpense(
   id: string,
