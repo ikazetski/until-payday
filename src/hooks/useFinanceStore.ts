@@ -87,6 +87,27 @@ function startOfToday() {
   return startOfDay(new Date());
 }
 
+function selectPersistedData(state: FinanceStore): PersistedData {
+  return {
+    monthlyBudget: state.monthlyBudget,
+    salaryDay: state.salaryDay,
+    currency: state.currency,
+    fixedExpenses: state.fixedExpenses,
+    recentExpenses: state.recentExpenses,
+    trackingStartedAt: state.trackingStartedAt,
+    expenseCategories: state.expenseCategories,
+  };
+}
+
+function persistAndRecalculate(data: PersistedData) {
+  localStorageFinanceRepository.save(data);
+
+  return {
+    ...data,
+    ...calculateFinance(data),
+  };
+}
+
 const initialData = localStorageFinanceRepository.load();
 const initialDerived = calculateFinance(initialData);
 
@@ -120,31 +141,18 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     };
 
     const updatedData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
-      fixedExpenses: current.fixedExpenses,
-      recentExpenses: current.recentExpenses,
-      trackingStartedAt: current.trackingStartedAt,
+      ...selectPersistedData(current),
       expenseCategories: [...current.expenseCategories, newCategory],
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 
   addExpense: (amount, category) => {
     const current = get();
 
     const updatedData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
-      fixedExpenses: current.fixedExpenses,
+      ...selectPersistedData(current),
       recentExpenses: [
         {
           id: crypto.randomUUID(),
@@ -154,46 +162,27 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         },
         ...current.recentExpenses,
       ],
-      trackingStartedAt: current.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 
   removeExpense: (id) => {
     const current = get();
 
     const updatedData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
-      fixedExpenses: current.fixedExpenses,
+      ...selectPersistedData(current),
       recentExpenses: current.recentExpenses.filter((item) => item.id !== id),
-      trackingStartedAt: current.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 
   addFixedExpense: (name, amount) => {
     const current = get();
 
     const updatedData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
+      ...selectPersistedData(current),
       fixedExpenses: [
         ...current.fixedExpenses,
         {
@@ -202,26 +191,16 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
           amount: roundMoney(amount),
         },
       ],
-      recentExpenses: current.recentExpenses,
-      trackingStartedAt: current.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 
   updateFixedExpense: (id, name, amount) => {
     const current = get();
 
     const updatedData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
+      ...selectPersistedData(current),
       fixedExpenses: current.fixedExpenses.map((item) =>
         item.id === id
           ? {
@@ -231,94 +210,53 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
             }
           : item
       ),
-      recentExpenses: current.recentExpenses,
-      trackingStartedAt: current.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 
   removeFixedExpense: (id) => {
     const current = get();
 
     const updatedData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
+      ...selectPersistedData(current),
       fixedExpenses: current.fixedExpenses.filter((item) => item.id !== id),
-      recentExpenses: current.recentExpenses,
-      trackingStartedAt: current.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 
   updateSettings: (monthlyBudget, salaryDay, currency) => {
     const current = get();
 
     const updatedData: PersistedData = {
+      ...selectPersistedData(current),
       monthlyBudget: roundMoney(monthlyBudget),
       salaryDay,
       currency,
-      fixedExpenses: current.fixedExpenses,
-      recentExpenses: current.recentExpenses,
-      trackingStartedAt: current.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 
   restoreSettings: (snapshot) => {
     const current = get();
 
     const restoredData: PersistedData = {
+      ...selectPersistedData(current),
       monthlyBudget: roundMoney(snapshot.monthlyBudget),
       salaryDay: snapshot.salaryDay,
       currency: snapshot.currency,
-      fixedExpenses: current.fixedExpenses,
-      recentExpenses: current.recentExpenses,
       trackingStartedAt: snapshot.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(restoredData);
-
-    set({
-      ...restoredData,
-      ...calculateFinance(restoredData),
-    });
+    set(persistAndRecalculate(restoredData));
   },
 
   refreshDerived: () => {
     const current = get();
 
-    const currentData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
-      fixedExpenses: current.fixedExpenses,
-      recentExpenses: current.recentExpenses,
-      trackingStartedAt: current.trackingStartedAt,
-      expenseCategories: current.expenseCategories,
-    };
+    const currentData = selectPersistedData(current);
 
     set({
       ...currentData,
@@ -330,20 +268,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const current = get();
 
     const updatedData: PersistedData = {
-      monthlyBudget: current.monthlyBudget,
-      salaryDay: current.salaryDay,
-      currency: current.currency,
-      fixedExpenses: current.fixedExpenses,
-      recentExpenses: current.recentExpenses,
+      ...selectPersistedData(current),
       trackingStartedAt: startOfToday().toISOString(),
-      expenseCategories: current.expenseCategories,
     };
 
-    localStorageFinanceRepository.save(updatedData);
-
-    set({
-      ...updatedData,
-      ...calculateFinance(updatedData),
-    });
+    set(persistAndRecalculate(updatedData));
   },
 }));
