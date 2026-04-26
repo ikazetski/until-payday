@@ -93,7 +93,19 @@ describe("financeStorageMigrations", () => {
     expect(migrated.data.currency).toBe("BYN");
     expect(migrated.data.fixedExpenses).toEqual([]);
     expect(migrated.data.recentExpenses).toEqual([]);
-    expect(migrated.data.expenseCategories).toEqual([]);
+    expect(migrated.data.expenseCategories.length).toBeGreaterThan(0);
+    expect(migrated.data.expenseCategories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "food",
+          system: true,
+        }),
+        expect.objectContaining({
+          id: "other",
+          system: true,
+        }),
+      ])
+    );
     expect(typeof migrated.data.trackingStartedAt).toBe("string");
   });
 

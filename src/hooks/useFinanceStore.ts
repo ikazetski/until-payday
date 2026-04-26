@@ -2,7 +2,12 @@ import { create } from "zustand";
 import { roundMoney, startOfDay } from "@/lib/finance";
 import { calculateFinance } from "@/domain/financeEngine";
 
-import { localStorageFinanceRepository } from "@/data/localStorageFinanceRepository";
+import {
+  bootstrapFinanceStorage,
+  persistFinanceState,
+  type FinanceStorageSource,
+} from "@/data/financeStorageBootstrap";
+import { createFallbackFinanceState } from "@/data/financeStateFactory";
 import type { PersistedFinanceState } from "@/data/financeRepository";
 
 import type {
@@ -40,6 +45,9 @@ type FinanceStore = {
   recentExpenses: Expense[];
   trackingStartedAt: string;
   expenseCategories: ExpenseCategoryItem[];
+
+  isHydrated: boolean;
+  storageSource: FinanceStorageSource | "loading" | "error";
 
   remaining: number;
   daysLeft: number;
@@ -81,6 +89,8 @@ type FinanceStore = {
 
   refreshDerived: () => void;
   startNewCycle: () => void;
+
+  hydrate: () => Promise<void>;
 };
 
 function startOfToday() {
@@ -100,7 +110,7 @@ function selectPersistedData(state: FinanceStore): PersistedData {
 }
 
 function persistAndRecalculate(data: PersistedData) {
-  localStorageFinanceRepository.save(data);
+  persistFinanceState(data);
 
   return {
     ...data,
@@ -108,12 +118,38 @@ function persistAndRecalculate(data: PersistedData) {
   };
 }
 
-const initialData = localStorageFinanceRepository.load();
+const initialData = createFallbackFinanceState();
 const initialDerived = calculateFinance(initialData);
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
   ...initialData,
   ...initialDerived,
+  isHydrated: false,
+  storageSource: "loading",
+
+  hydrate: async () => {
+  try {
+    const result = await bootstrapFinanceStorage();
+
+    set({
+      ...result.state,
+      ...calculateFinance(result.state),
+      isHydrated: true,
+      storageSource: result.source,
+    });
+  } catch (error) {
+    console.error("Failed to hydrate finance storage", error);
+
+    const currentData = selectPersistedData(get());
+
+    set({
+      ...currentData,
+      ...calculateFinance(currentData),
+      isHydrated: true,
+      storageSource: "error",
+    });
+  }
+},
 
   addExpenseCategory: (name: string) => {
     const current = get();

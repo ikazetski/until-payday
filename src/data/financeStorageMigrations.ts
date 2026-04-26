@@ -5,17 +5,16 @@ import type {
   FixedExpense,
 } from "@/domain/financeTypes";
 import {
-  CURRENT_FINANCE_SCHEMA_VERSION,
-  type LegacyFinanceStorageData,
-  type PersistedFinanceDataV1,
-} from "./financeStorageTypes";
-
-import {
   DEFAULT_CURRENCY,
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_MONTHLY_BUDGET,
   DEFAULT_SALARY_DAY,
 } from "@/domain/financeDefaults";
+import {
+  CURRENT_FINANCE_SCHEMA_VERSION,
+  type LegacyFinanceStorageData,
+  type PersistedFinanceDataV1,
+} from "./financeStorageTypes";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -38,7 +37,10 @@ function normalizeMonthlyBudget(value: unknown): number {
 }
 
 function normalizeSalaryDay(value: unknown): number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 31
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 31
     ? value
     : DEFAULT_SALARY_DAY;
 }
@@ -55,6 +57,12 @@ function normalizeTrackingStartedAt(value: unknown): string {
 
 function normalizeArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function normalizeExpenseCategories(value: unknown): ExpenseCategoryItem[] {
+  const categories = normalizeArray<ExpenseCategoryItem>(value);
+
+  return categories.length > 0 ? categories : DEFAULT_EXPENSE_CATEGORIES;
 }
 
 export function createDefaultPersistedFinanceData(): PersistedFinanceDataV1 {
@@ -76,9 +84,7 @@ export function isPersistedFinanceDataV1(
   value: unknown
 ): value is PersistedFinanceDataV1 {
   return (
-    isRecord(value) &&
-    value.schemaVersion === 1 &&
-    isRecord(value.data)
+    isRecord(value) && value.schemaVersion === 1 && isRecord(value.data)
   );
 }
 
@@ -94,9 +100,7 @@ export function migrateLegacyFinanceStorage(
       fixedExpenses: normalizeArray<FixedExpense>(legacy.fixedExpenses),
       recentExpenses: normalizeArray<Expense>(legacy.recentExpenses),
       trackingStartedAt: normalizeTrackingStartedAt(legacy.trackingStartedAt),
-      expenseCategories: normalizeArray<ExpenseCategoryItem>(
-        legacy.expenseCategories
-      ),
+      expenseCategories: normalizeExpenseCategories(legacy.expenseCategories),
     },
   };
 }
