@@ -1,11 +1,5 @@
-import { startOfDay } from "@/lib/finance";
 import { normalizeExpenseCategories } from "@/domain/categoryUtils";
-import {
-  DEFAULT_CURRENCY,
-  DEFAULT_EXPENSE_CATEGORIES,
-  DEFAULT_MONTHLY_BUDGET,
-  DEFAULT_SALARY_DAY,
-} from "@/domain/financeDefaults";
+import { createFallbackFinanceState } from "@/data/financeStateFactory";
 import { migrateFinanceStorage } from "@/data/financeStorageMigrations";
 import {
   FINANCE_STORAGE_BACKUP_KEY,
@@ -17,21 +11,9 @@ import type {
   PersistedFinanceState,
 } from "@/data/financeRepository";
 
-function startOfToday() {
-  return startOfDay(new Date());
-}
-
-function createFallbackFinanceState(): PersistedFinanceState {
-  return {
-    monthlyBudget: DEFAULT_MONTHLY_BUDGET,
-    salaryDay: DEFAULT_SALARY_DAY,
-    currency: DEFAULT_CURRENCY,
-    fixedExpenses: [],
-    recentExpenses: [],
-    trackingStartedAt: startOfToday().toISOString(),
-    expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
-  };
-}
+type LocalStorageFinanceRepository = FinanceRepository & {
+  loadExisting: () => PersistedFinanceState | null;
+};
 
 function toPersistedFinanceDataV1(
   data: PersistedFinanceState
@@ -40,6 +22,14 @@ function toPersistedFinanceDataV1(
     schemaVersion: 1,
     data,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasSchemaVersion(value: unknown): boolean {
+  return isRecord(value) && "schemaVersion" in value;
 }
 
 function backupLegacyStorageIfNeeded(raw: string) {
@@ -52,35 +42,45 @@ function backupLegacyStorageIfNeeded(raw: string) {
   }
 }
 
-export const localStorageFinanceRepository: FinanceRepository = {
-  load() {
-    const fallback = createFallbackFinanceState();
+function normalizeFinanceState(
+  state: PersistedFinanceState
+): PersistedFinanceState {
+  return {
+    ...state,
+    expenseCategories: normalizeExpenseCategories(state.expenseCategories),
+  };
+}
 
-    if (typeof window === "undefined") return fallback;
+function readExistingFinanceState(): PersistedFinanceState | null {
+  if (typeof window === "undefined") return null;
 
-    const raw = localStorage.getItem(FINANCE_STORAGE_KEY);
+  const raw = localStorage.getItem(FINANCE_STORAGE_KEY);
 
-    if (!raw) return fallback;
+  if (!raw) return null;
 
-    try {
-      const parsed = JSON.parse(raw);
-      const migrated = migrateFinanceStorage(parsed);
+  try {
+    const parsed = JSON.parse(raw);
+    const migrated = migrateFinanceStorage(parsed);
 
-      if (!("schemaVersion" in parsed)) {
-        backupLegacyStorageIfNeeded(raw);
-        localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(migrated));
-      }
-
-      return {
-        ...migrated.data,
-        expenseCategories: normalizeExpenseCategories(
-          migrated.data.expenseCategories
-        ),
-      };
-    } catch {
+    if (!hasSchemaVersion(parsed)) {
       backupLegacyStorageIfNeeded(raw);
-      return fallback;
+      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(migrated));
     }
+
+    return normalizeFinanceState(migrated.data);
+  } catch {
+    backupLegacyStorageIfNeeded(raw);
+    return null;
+  }
+}
+
+export const localStorageFinanceRepository: LocalStorageFinanceRepository = {
+  load() {
+    return readExistingFinanceState() ?? createFallbackFinanceState();
+  },
+
+  loadExisting() {
+    return readExistingFinanceState();
   },
 
   save(data) {
@@ -88,7 +88,7 @@ export const localStorageFinanceRepository: FinanceRepository = {
 
     localStorage.setItem(
       FINANCE_STORAGE_KEY,
-      JSON.stringify(toPersistedFinanceDataV1(data))
+      JSON.stringify(toPersistedFinanceDataV1(normalizeFinanceState(data)))
     );
   },
 };

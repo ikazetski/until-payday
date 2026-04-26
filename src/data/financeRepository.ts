@@ -19,3 +19,8 @@ export type FinanceRepository = {
   load: () => PersistedFinanceState;
   save: (data: PersistedFinanceState) => void;
 };
+
+export type AsyncFinanceRepository = {
+  load: () => Promise<PersistedFinanceState>;
+  save: (data: PersistedFinanceState) => Promise<void>;
+};
