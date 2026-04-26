@@ -586,30 +586,6 @@ const Index = () => {
         />
       </div>
 
-      <div className="finance-card mt-5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Фикс. расходы</span>
-          <span className="text-sm font-semibold">
-            {formatMoneyWithCurrency(store.fixedTotal, store.currency)}
-          </span>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
-          <span className="text-sm text-muted-foreground">Всего потрачено</span>
-          <span className="text-sm font-semibold">
-            {formatMoneyWithCurrency(
-              store.totalSpentCore + store.fixedTotal,
-              store.currency
-            )}
-          </span>
-        </div>
-
-        <p className="mt-3 text-xs text-muted-foreground">
-          Фиксированные расходы не уменьшают дневной лимит, но показываются в общем
-          итоге.
-        </p>
-      </div>
-
       <div className="mt-5">
         <RecentTransactions
           expenses={currentPeriodExpenses}
@@ -632,11 +608,7 @@ const Index = () => {
         monthlyBudget={store.monthlyBudget}
         salaryDay={store.salaryDay}
         currency={store.currency}
-        fixedExpenses={store.fixedExpenses}
         onUpdateSettings={handleSettingsSave}
-        onAddFixed={store.addFixedExpense}
-        onUpdateFixed={store.updateFixedExpense}
-        onRemoveFixed={store.removeFixedExpense}
       />
 
       {undoExpense && (
