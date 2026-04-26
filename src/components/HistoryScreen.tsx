@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { formatMoneyWithCurrency, } from "@/lib/utils";
 import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 import { buildMonthlyGroups, buildWeeklyGroups } from "@/domain/historyEngine";
+import { SegmentedTabs } from "@/components/SegmentedTabs";
 import { useFinanceStore } from "@/hooks/useFinanceStore";
 import {
   getExpenseCategoryIcon,
@@ -180,28 +181,14 @@ export function HistoryScreen({
         </p>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1">
-        <button
-          onClick={() => setMode("weeks")}
-          className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-            mode === "weeks"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-500"
-          }`}
-        >
-          Недели
-        </button>
-        <button
-          onClick={() => setMode("months")}
-          className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-            mode === "months"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-500"
-          }`}
-        >
-          Месяцы
-        </button>
-      </div>
+      <SegmentedTabs
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: "weeks", label: "Недели" },
+          { value: "months", label: "Месяцы" },
+        ]}
+      />
 
       {visibleGroups.length === 0 ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">

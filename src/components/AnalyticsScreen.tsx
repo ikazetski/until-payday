@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { SegmentedTabs } from "@/components/SegmentedTabs";
 import {
   Bar,
   BarChart,
@@ -366,30 +367,14 @@ export function AnalyticsScreen() {
           <p className="text-sm text-muted-foreground mt-1">Структура расходов</p>
         </div>
 
-        <div className="inline-flex rounded-2xl bg-secondary p-1 mb-5">
-          <button
-            onClick={() => setMode("week")}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-medium transition-all",
-              mode === "week"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground"
-            )}
-          >
-            Неделя
-          </button>
-          <button
-            onClick={() => setMode("period")}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-medium transition-all",
-              mode === "period"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground"
-            )}
-          >
-            Период
-          </button>
-        </div>
+        <SegmentedTabs
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: "week", label: "Неделя" },
+            { value: "period", label: "Период" },
+          ]}
+        />
 
         <div className="finance-card">
           <p className="text-sm font-medium">Пока недостаточно данных</p>
