@@ -21,8 +21,11 @@ import { AnalyticsScreen } from "@/components/AnalyticsScreen";
 
 const Index = () => {
   const store = useFinanceStore();
+  const isHydrated = useFinanceStore((state) => state.isHydrated);
+  const hydrate = useFinanceStore((state) => state.hydrate);
 
   const currencySymbol = getCurrencySymbol(store.currency);
+
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "analytics" | "history">("home");
@@ -125,6 +128,12 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
+      void hydrate();
+    }, [hydrate]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
     const refresh = () => useFinanceStore.getState().refreshDerived();
 
     refresh();
@@ -145,7 +154,7 @@ const Index = () => {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, []);
+  }, [isHydrated]);
 
   const cycleExpenses = useMemo(() => {
     const cycleStart = store.currentCycleStart.getTime();
@@ -275,6 +284,23 @@ const Index = () => {
     Math.max(0, store.weeklyTodayAvailable),
     Math.max(0, store.weeklyRemaining)
   );
+
+  if (!isHydrated) {
+    return (
+      <main className="min-h-screen bg-background px-4 py-6 text-foreground">
+        <div className="mx-auto flex min-h-[60vh] max-w-md items-center justify-center">
+          <div className="rounded-3xl border border-white/70 bg-white/80 px-5 py-4 text-center shadow-sm backdrop-blur">
+            <p className="text-sm font-semibold text-foreground">
+              Загружаем данные
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Проверяем локальное хранилище и восстанавливаем бюджет
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (activeTab === "history") {
     return (
