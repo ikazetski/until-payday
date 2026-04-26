@@ -82,7 +82,8 @@ function ChartTooltip({
     >
       <p className="text-sm font-semibold">{item.name}</p>
       <p className="text-xs mt-1 text-white/90">
-        {formatMoneyWithCurrency(item.amount, currency as never)} · {item.share}%
+        {formatMoneyWithCurrency(item.amount, currency as never)} · {item.share}
+        %
       </p>
     </div>
   );
@@ -226,13 +227,27 @@ function DonutChart({
                 x2="1"
                 y2="1"
               >
-                <stop offset="0%" stopColor={mixHexWithWhite(item.color, 0.16)} />
+                <stop
+                  offset="0%"
+                  stopColor={mixHexWithWhite(item.color, 0.16)}
+                />
                 <stop offset="100%" stopColor={item.color} />
               </linearGradient>
             ))}
 
-            <filter id="analytics-donut-active-shadow" x="-60%" y="-60%" width="220%" height="220%">
-              <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="rgba(15,23,42,0.16)" />
+            <filter
+              id="analytics-donut-active-shadow"
+              x="-60%"
+              y="-60%"
+              width="220%"
+              height="220%"
+            >
+              <feDropShadow
+                dx="0"
+                dy="10"
+                stdDeviation="10"
+                floodColor="rgba(15,23,42,0.16)"
+              />
             </filter>
           </defs>
 
@@ -247,8 +262,8 @@ function DonutChart({
             strokeWidth={3}
             shape={(props: PieShapeProps) =>
               renderPieShape({
-              ...props,
-              isActive: props.index === activeIndex,
+                ...props,
+                isActive: props.index === activeIndex,
               })
             }
             onMouseEnter={(_, index) => setActiveIndex(index)}
@@ -274,7 +289,9 @@ function DonutChart({
 
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <div className="rounded-full border border-border/60 bg-background/95 px-5 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm max-w-[170px]">
-          <p className="text-[11px] text-muted-foreground text-center">{centerLabel}</p>
+          <p className="text-[11px] text-muted-foreground text-center">
+            {centerLabel}
+          </p>
           <p className="text-[1.05rem] font-bold text-center leading-tight mt-0.5 break-words">
             {centerValue}
           </p>
@@ -303,7 +320,7 @@ export function AnalyticsScreen() {
     const endExclusive = new Date(
       store.currentWeekEnd.getFullYear(),
       store.currentWeekEnd.getMonth(),
-      store.currentWeekEnd.getDate() + 1
+      store.currentWeekEnd.getDate() + 1,
     ).getTime();
 
     return (store.recentExpenses ?? []).filter((expense) => {
@@ -356,16 +373,20 @@ export function AnalyticsScreen() {
       : `${format(store.currentWeekStart, "d MMM", { locale: ru })} – ${format(
           store.currentWeekEnd,
           "d MMM",
-          { locale: ru }
+          { locale: ru },
         )}`;
 
   if (summary.categories.length === 0) {
     return (
       <div className="px-5 pt-10 pb-24 max-w-md mx-auto">
-        <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight">Аналитика</h1>
-          <p className="text-sm text-muted-foreground mt-1">Структура расходов</p>
-        </div>
+        <header className="mb-6">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+            Аналитика
+          </h1>
+          <p className="mt-2 text-base text-muted-foreground">
+            Структура расходов
+          </p>
+        </header>
 
         <SegmentedTabs
           value={mode}
@@ -379,8 +400,8 @@ export function AnalyticsScreen() {
         <div className="finance-card">
           <p className="text-sm font-medium">Пока недостаточно данных</p>
           <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-            Добавь несколько расходов, и здесь появится распределение по категориям,
-            ритм трат и персональный совет.
+            Добавь несколько расходов, и здесь появится распределение по
+            категориям, ритм трат и персональный совет.
           </p>
         </div>
       </div>
@@ -389,36 +410,23 @@ export function AnalyticsScreen() {
 
   return (
     <div className="px-5 pt-10 pb-24 max-w-md mx-auto">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold tracking-tight">Аналитика</h1>
-        <p className="text-sm text-muted-foreground mt-1">Структура расходов</p>
+      <header className="mb-6">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">
+          Аналитика
+        </h1>
+        <p className="mt-2 text-base text-muted-foreground">
+          Структура расходов
+        </p>
+      </header>
 
-        <div className="mt-4 w-full rounded-[24px] bg-secondary p-1 grid grid-cols-2 gap-1">
-          <button
-            onClick={() => setMode("week")}
-            className={cn(
-              "h-12 rounded-[20px] text-base font-medium transition-all",
-              mode === "week"
-              ? "bg-background shadow-sm text-foreground"
-              : "text-muted-foreground"
-            )}
-          >
-            Неделя
-          </button>
-
-          <button
-            onClick={() => setMode("period")}
-            className={cn(
-              "h-12 rounded-[20px] text-base font-medium transition-all",
-              mode === "period"
-              ? "bg-background shadow-sm text-foreground"
-              : "text-muted-foreground"
-            )}
-          >
-            Период
-          </button>
-        </div>
-      </div>
+      <SegmentedTabs
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: "week", label: "Неделя" },
+          { value: "period", label: "Период" },
+        ]}
+      />
 
       <div className="finance-card">
         <div className="mb-4">
@@ -430,7 +438,10 @@ export function AnalyticsScreen() {
           key={`${mode}-${summary.chartCategories.map((item) => item.id).join("-")}`}
           items={summary.chartCategories}
           centerLabel="Всего"
-          centerValue={formatMoneyWithCurrency(summary.totalAmount, store.currency)}
+          centerValue={formatMoneyWithCurrency(
+            summary.totalAmount,
+            store.currency,
+          )}
           currency={store.currency}
         />
 
@@ -477,7 +488,7 @@ export function AnalyticsScreen() {
           <p
             className={cn(
               "text-base font-bold mt-1 leading-tight",
-              trendPositive ? "text-emerald-600" : "text-red-500"
+              trendPositive ? "text-emerald-600" : "text-red-500",
             )}
           >
             {periodDelta > 0 ? "+" : ""}
@@ -501,7 +512,8 @@ export function AnalyticsScreen() {
               key={item.id}
               className={cn(
                 "px-1 py-3",
-                index !== summary.categories.length - 1 && "border-b border-border/60"
+                index !== summary.categories.length - 1 &&
+                  "border-b border-border/60",
               )}
             >
               <div className="flex items-center justify-between mb-2">
@@ -519,7 +531,8 @@ export function AnalyticsScreen() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {item.transactions} {item.transactions === 1 ? "операция" : "операции"}
+                      {item.transactions}{" "}
+                      {item.transactions === 1 ? "операция" : "операции"}
                       {index === 0 ? " · лидер по расходам" : ""}
                     </p>
                   </div>
@@ -557,7 +570,9 @@ export function AnalyticsScreen() {
           </div>
 
           <p className="text-xs text-muted-foreground text-right leading-[1.35] pt-[1px] shrink-0">
-            В среднем {formatMoneyWithCurrency(rhythm.averageAmount, store.currency)} {rhythm.averageLabel}
+            В среднем{" "}
+            {formatMoneyWithCurrency(rhythm.averageAmount, store.currency)}{" "}
+            {rhythm.averageLabel}
           </p>
         </div>
 
@@ -569,11 +584,23 @@ export function AnalyticsScreen() {
               barCategoryGap={10}
             >
               <defs>
-                <linearGradient id="rhythm-bar-gradient" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id="rhythm-bar-gradient"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop offset="0%" stopColor="#C7D2FE" />
                   <stop offset="100%" stopColor="#818CF8" />
                 </linearGradient>
-                <linearGradient id="rhythm-peak-gradient" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id="rhythm-peak-gradient"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop offset="0%" stopColor="#A78BFA" />
                   <stop offset="100%" stopColor="#4F46E5" />
                 </linearGradient>
@@ -583,7 +610,11 @@ export function AnalyticsScreen() {
                 dataKey="label"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "hsl(var(--foreground) / 0.74)", fontSize: 12, fontWeight: 500 }}
+                tick={{
+                  fill: "hsl(var(--foreground) / 0.74)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                }}
               />
 
               <Tooltip
@@ -596,7 +627,11 @@ export function AnalyticsScreen() {
                 {rhythm.items.map((day: SpendingRhythmItem) => (
                   <Cell
                     key={day.key}
-                    fill={day.isPeak ? "url(#rhythm-peak-gradient)" : "url(#rhythm-bar-gradient)"}
+                    fill={
+                      day.isPeak
+                        ? "url(#rhythm-peak-gradient)"
+                        : "url(#rhythm-bar-gradient)"
+                    }
                   />
                 ))}
               </Bar>
@@ -613,7 +648,7 @@ export function AnalyticsScreen() {
           advice.tone === "warning" &&
             "bg-[linear-gradient(135deg,rgba(251,113,133,0.08),rgba(248,113,113,0.02))] border-rose-100",
           advice.tone === "neutral" &&
-            "bg-[linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.02))] border-indigo-100"
+            "bg-[linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.02))] border-indigo-100",
         )}
       >
         <div className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-white/30 blur-sm" />
@@ -625,7 +660,7 @@ export function AnalyticsScreen() {
                 "w-5 h-5",
                 advice.tone === "warning" && "text-rose-600",
                 advice.tone === "positive" && "text-indigo-600",
-                advice.tone === "neutral" && "text-indigo-600"
+                advice.tone === "neutral" && "text-indigo-600",
               )}
             />
           </div>
@@ -637,7 +672,7 @@ export function AnalyticsScreen() {
                 "text-[1rem] mt-2 leading-relaxed",
                 advice.tone === "warning" && "text-rose-700/90",
                 advice.tone === "positive" && "text-indigo-700/90",
-                advice.tone === "neutral" && "text-indigo-700/90"
+                advice.tone === "neutral" && "text-indigo-700/90",
               )}
             >
               {advice.description}
