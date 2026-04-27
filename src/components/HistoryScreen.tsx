@@ -1,13 +1,10 @@
 import { useMemo, useState } from "react";
-import { formatMoneyWithCurrency, } from "@/lib/utils";
+import { formatMoneyWithCurrency } from "@/lib/utils";
 import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 import { buildMonthlyGroups, buildWeeklyGroups } from "@/domain/historyEngine";
 import { SegmentedTabs } from "@/components/SegmentedTabs";
 import { useFinanceStore } from "@/hooks/useFinanceStore";
-import {
-  getExpenseCategoryIcon,
-  getExpenseCategoryName,
-} from "@/lib/utils";
+import { getExpenseCategoryIcon, getExpenseCategoryName } from "@/lib/utils";
 
 type HistoryScreenProps = {
   expenses: Expense[];
@@ -29,7 +26,11 @@ type PeriodGroup = {
   delta: number;
 };
 
-function getDeltaLabel(delta: number, mode: HistoryMode, isCurrentPeriod: boolean) {
+function getDeltaLabel(
+  delta: number,
+  mode: HistoryMode,
+  isCurrentPeriod: boolean,
+) {
   if (delta < 0) return "Перерасход";
 
   if (mode === "weeks") {
@@ -52,14 +53,16 @@ function HistoryPeriodCard({
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const visibleExpenses = expanded ? group.expenses : group.expenses.slice(0, 5);
+  const visibleExpenses = expanded ? group.expenses : [];
   const isCurrentPeriod = Boolean(group.subtitle);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">{group.title}</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            {group.title}
+          </h2>
           {group.subtitle && (
             <p className="mt-0.5 text-xs text-gray-500">{group.subtitle}</p>
           )}
@@ -119,10 +122,15 @@ function HistoryPeriodCard({
 
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900">
-                          {new Date(expense.createdAt).toLocaleDateString("ru-RU")}
+                          {new Date(expense.createdAt).toLocaleDateString(
+                            "ru-RU",
+                          )}
                         </p>
                         <p className="truncate text-xs text-gray-500">
-                          {getExpenseCategoryName(expense.category, expenseCategories)}
+                          {getExpenseCategoryName(
+                            expense.category,
+                            expenseCategories,
+                          )}
                         </p>
                       </div>
                     </div>
@@ -135,12 +143,15 @@ function HistoryPeriodCard({
               })}
             </div>
 
-            {group.expenses.length > 5 && (
+            {group.expenses.length > 0 && (
               <button
+                type="button"
                 onClick={() => setExpanded((prev) => !prev)}
                 className="mt-3 w-full rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
               >
-                {expanded ? "Скрыть" : "Показать все"}
+                {expanded
+                  ? "Скрыть операции"
+                  : `Показать операции (${group.expenses.length})`}
               </button>
             )}
           </>
@@ -160,13 +171,15 @@ export function HistoryScreen({
   const [mode, setMode] = useState<HistoryMode>("weeks");
 
   const weeklyGroups = useMemo(
-  () => buildWeeklyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
-  [expenses, monthlyBudget, salaryDay, trackingStartedAt]
-);
+    () =>
+      buildWeeklyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
+    [expenses, monthlyBudget, salaryDay, trackingStartedAt],
+  );
 
   const monthlyGroups = useMemo(
-    () => buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
-    [expenses, monthlyBudget, salaryDay, trackingStartedAt]
+    () =>
+      buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
+    [expenses, monthlyBudget, salaryDay, trackingStartedAt],
   );
   const expenseCategories = useFinanceStore((state) => state.expenseCategories);
 
@@ -192,7 +205,9 @@ export function HistoryScreen({
 
       {visibleGroups.length === 0 ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm font-medium text-gray-900">История пока пуста</p>
+          <p className="text-sm font-medium text-gray-900">
+            История пока пуста
+          </p>
           <p className="mt-1 text-xs text-gray-500">
             Добавь расходы, и здесь появится статистика по неделям и месяцам
           </p>

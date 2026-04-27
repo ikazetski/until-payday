@@ -380,7 +380,7 @@ export function AnalyticsScreen() {
     return (
       <div className="px-5 pt-10 pb-24 max-w-md mx-auto">
         <header className="mb-6">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Аналитика
           </h1>
           <p className="mt-2 text-base text-muted-foreground">
@@ -411,7 +411,7 @@ export function AnalyticsScreen() {
   return (
     <div className="px-5 pt-10 pb-24 max-w-md mx-auto">
       <header className="mb-6">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Аналитика
         </h1>
         <p className="mt-2 text-base text-muted-foreground">
