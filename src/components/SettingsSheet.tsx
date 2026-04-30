@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  ChevronRight,
+  EyeOff,
+  Plus,
+  RotateCcw,
+} from "lucide-react";
 import { BottomSheet } from "@/components/BottomSheet";
-import type { CurrencyCode } from "@/hooks/useFinanceStore";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import {
+  ALWAYS_ACTIVE_CATEGORY_ID,
+  MAX_ACTIVE_EXPENSE_CATEGORIES,
+  getActiveExpenseCategories,
+  getHiddenExpenseCategories,
+  hasReachedActiveCategoryLimit,
+} from "@/domain/categoryUtils";
+import { useFinanceStore, type CurrencyCode } from "@/hooks/useFinanceStore";
 
 type SettingsSheetProps = {
   open: boolean;
@@ -100,9 +115,36 @@ export function SettingsSheet({
   const [selectedDay, setSelectedDay] = useState(1);
   const [currencyValue, setCurrencyValue] = useState<CurrencyCode>(currency);
   const [view, setView] = useState<SettingsView>("menu");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
   const today = startOfToday();
+  const expenseCategories = useFinanceStore((state) => state.expenseCategories);
+  const recentExpenses = useFinanceStore((state) => state.recentExpenses);
+  const currentCycleStart = useFinanceStore((state) => state.currentCycleStart);
+  const nextSalaryDate = useFinanceStore((state) => state.nextSalaryDate);
+
+  const addExpenseCategory = useFinanceStore(
+    (state) => state.addExpenseCategory,
+  );
+  const hideExpenseCategory = useFinanceStore(
+    (state) => state.hideExpenseCategory,
+  );
+  const restoreExpenseCategory = useFinanceStore(
+    (state) => state.restoreExpenseCategory,
+  );
+  const moveExpenseCategoryUp = useFinanceStore(
+    (state) => state.moveExpenseCategoryUp,
+  );
+  const moveExpenseCategoryDown = useFinanceStore(
+    (state) => state.moveExpenseCategoryDown,
+  );
+
+  const activeCategories = getActiveExpenseCategories(expenseCategories);
+  const hiddenCategories = getHiddenExpenseCategories(expenseCategories);
+  const activeLimitReached = hasReachedActiveCategoryLimit(expenseCategories);
 
   useEffect(() => {
     if (open) {
@@ -134,6 +176,90 @@ export function SettingsSheet({
       setSelectedDay(daysInSelectedMonth);
     }
   }, [selectedDay, daysInSelectedMonth]);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+
+    const timerId = window.setTimeout(() => {
+      setToastMessage(null);
+    }, 2600);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [toastMessage]);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+  };
+
+  const hasCurrentPeriodExpenses = (categoryId: string) => {
+    return recentExpenses.some((expense) => {
+      const expenseTime = new Date(expense.createdAt).getTime();
+
+      return (
+        expense.category === categoryId &&
+        expenseTime >= currentCycleStart.getTime() &&
+        expenseTime < nextSalaryDate.getTime()
+      );
+    });
+  };
+
+  const handleAddCategory = () => {
+    const trimmed = newCategoryName.trim();
+
+    if (!trimmed) return;
+    if (trimmed.length > 12) {
+      showToast("Название категории — до 12 символов.");
+      return;
+    }
+
+    if (activeLimitReached) {
+      showToast("Лимит активных категорий — 10. Сначала скройте ненужную.");
+      return;
+    }
+
+    addExpenseCategory(trimmed);
+    setNewCategoryName("");
+    setIsAddingCategory(false);
+    showToast("Категория добавлена.");
+  };
+
+  const handleHideCategory = (categoryId: string) => {
+    if (categoryId === ALWAYS_ACTIVE_CATEGORY_ID) return;
+
+    if (hasCurrentPeriodExpenses(categoryId)) {
+      showToast(
+        "Нельзя скрыть категорию: в текущем периоде по ней уже есть расходы.",
+      );
+      return;
+    }
+
+    const success = hideExpenseCategory(categoryId);
+
+    if (!success) {
+      showToast("Не удалось скрыть категорию.");
+      return;
+    }
+
+    showToast("Категория скрыта.");
+  };
+
+  const handleRestoreCategory = (categoryId: string) => {
+    if (activeLimitReached) {
+      showToast("Лимит активных категорий — 10. Сначала скройте ненужную.");
+      return;
+    }
+
+    const success = restoreExpenseCategory(categoryId);
+
+    if (!success) {
+      showToast("Не удалось вернуть категорию.");
+      return;
+    }
+
+    showToast("Категория возвращена.");
+  };
 
   const handleSaveSettings = () => {
     const parsedBudget = Number(budgetValue);
@@ -372,22 +498,214 @@ export function SettingsSheet({
               Категории расходов
             </h2>
             <p className="mt-1 text-sm leading-relaxed text-gray-500">
-              Выберите до 10 категорий, которые будут показываться при
-              добавлении расхода.
+              Выберите до {MAX_ACTIVE_EXPENSE_CATEGORIES} категорий, которые
+              будут показываться при добавлении расхода.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4">
-            <p className="text-sm font-semibold text-gray-900">
-              Управление категориями будет здесь
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-gray-500">
-              На следующем шаге добавим активные и скрытые категории,
-              добавление, переименование, стрелки вверх/вниз и возврат из
-              скрытых.
-            </p>
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Активные категории
+                  </h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Показываются в попапе “Своя сумма”.
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-gray-600">
+                  {activeCategories.length}/{MAX_ACTIVE_EXPENSE_CATEGORIES}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {activeCategories.map((category, index) => {
+                  const isAlwaysActive =
+                    category.id === ALWAYS_ACTIVE_CATEGORY_ID;
+                  const hasExpenses = hasCurrentPeriodExpenses(category.id);
+
+                  return (
+                    <div
+                      key={category.id}
+                      className="rounded-2xl border border-gray-200 bg-white p-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-gray-900">
+                            {category.name}
+                          </p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {isAlwaysActive
+                              ? "Всегда активна"
+                              : category.system
+                                ? "Системная категория"
+                                : "Ваша категория"}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moveExpenseCategoryUp(category.id)}
+                            disabled={index === 0}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                            aria-label="Поднять категорию"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => moveExpenseCategoryDown(category.id)}
+                            disabled={index === activeCategories.length - 1}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                            aria-label="Опустить категорию"
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </button>
+
+                          {!isAlwaysActive && (
+                            <button
+                              type="button"
+                              onClick={() => handleHideCategory(category.id)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+                              aria-label="Скрыть категорию"
+                            >
+                              <EyeOff className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {hasExpenses && !isAlwaysActive && (
+                        <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                          В текущем периоде есть расходы. Категорию пока нельзя
+                          скрыть.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3">
+                {!activeLimitReached && !isAddingCategory && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingCategory(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Добавить категорию
+                  </button>
+                )}
+
+                {activeLimitReached && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                    Достигнут лимит: {MAX_ACTIVE_EXPENSE_CATEGORIES} активных
+                    категорий. Скройте ненужную категорию, чтобы добавить новую.
+                  </div>
+                )}
+
+                {isAddingCategory && (
+                  <div className="rounded-2xl border border-gray-200 bg-white p-3">
+                    <p className="mb-2 text-xs font-medium text-gray-600">
+                      Новая категория
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={newCategoryName}
+                        onChange={(event) =>
+                          setNewCategoryName(event.target.value)
+                        }
+                        placeholder="Например: Одежда"
+                        maxLength={12}
+                        className="h-10 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none transition focus:border-indigo-500"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={handleAddCategory}
+                        className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white"
+                      >
+                        OK
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingCategory(false);
+                        setNewCategoryName("");
+                      }}
+                      className="mt-2 text-xs font-medium text-gray-500"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-4">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Скрытые категории
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  Не показываются при добавлении расхода, но остаются в истории
+                  и аналитике.
+                </p>
+              </div>
+
+              {hiddenCategories.length === 0 ? (
+                <p className="rounded-2xl bg-gray-50 px-3 py-3 text-sm text-gray-500">
+                  Скрытых категорий пока нет.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {hiddenCategories.map((category) => (
+                    <div
+                      key={category.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-900">
+                          {category.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {category.system
+                            ? "Системная категория"
+                            : "Ваша категория"}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreCategory(category.id)}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-100"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Вернуть
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </>
+      )}
+
+      {toastMessage && (
+        <div className="pointer-events-none sticky bottom-0 z-20 -mx-5 mt-4 px-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="rounded-2xl bg-gray-900 px-4 py-3 text-sm text-white shadow-lg">
+            {toastMessage}
+          </div>
+        </div>
       )}
     </BottomSheet>
   );
