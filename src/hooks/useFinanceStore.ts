@@ -186,6 +186,10 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
 
   addExpense: (amount, category) => {
     const current = get();
+    
+    const categoryName =
+      current.expenseCategories.find((item) => item.id === category)?.name ??
+      "Другое";
 
     const updatedData: PersistedData = {
       ...selectPersistedData(current),
@@ -194,6 +198,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
           id: crypto.randomUUID(),
           amount: roundMoney(amount),
           category,
+          categoryNameSnapshot: categoryName,
           createdAt: new Date().toISOString(),
         },
         ...current.recentExpenses,

@@ -4,7 +4,7 @@ import { migrateFinanceStorage } from "@/data/financeStorageMigrations";
 import {
   FINANCE_STORAGE_BACKUP_KEY,
   FINANCE_STORAGE_KEY,
-  type PersistedFinanceDataV1,
+  type PersistedFinanceDataV2,
 } from "@/data/financeStorageTypes";
 import type {
   FinanceRepository,
@@ -15,11 +15,11 @@ type LocalStorageFinanceRepository = FinanceRepository & {
   loadExisting: () => PersistedFinanceState | null;
 };
 
-function toPersistedFinanceDataV1(
+function toPersistedFinanceDataV2(
   data: PersistedFinanceState
-): PersistedFinanceDataV1 {
+): PersistedFinanceDataV2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     data,
   };
 }
@@ -88,7 +88,7 @@ export const localStorageFinanceRepository: LocalStorageFinanceRepository = {
 
     localStorage.setItem(
       FINANCE_STORAGE_KEY,
-      JSON.stringify(toPersistedFinanceDataV1(normalizeFinanceState(data)))
+      JSON.stringify(toPersistedFinanceDataV2(normalizeFinanceState(data)))
     );
   },
 };

@@ -5,6 +5,7 @@ export type Expense = {
   id: string;
   amount: number;
   category: ExpenseCategory;
+  categoryNameSnapshot?: string;
   note?: string;
   createdAt: string;
 };
@@ -19,5 +20,7 @@ export type ExpenseCategoryItem = {
   id: string;
   name: string;
   system?: boolean;
+  hidden?: boolean;
+  order?: number;
 };
 

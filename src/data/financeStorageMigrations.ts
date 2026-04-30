@@ -10,11 +10,13 @@ import {
   DEFAULT_MONTHLY_BUDGET,
   DEFAULT_SALARY_DAY,
 } from "@/domain/financeDefaults";
+import { normalizeExpenseCategories } from "@/domain/categoryUtils";
 import {
   CURRENT_FINANCE_SCHEMA_VERSION,
   type LegacyFinanceStorageData,
   type PersistedFinanceDataV1,
-} from "./financeStorageTypes";
+  type PersistedFinanceDataV2,
+} from "@/data/financeStorageTypes";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -59,13 +61,42 @@ function normalizeArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function normalizeExpenseCategories(value: unknown): ExpenseCategoryItem[] {
+function normalizeLegacyExpenseCategories(
+  value: unknown
+): ExpenseCategoryItem[] {
   const categories = normalizeArray<ExpenseCategoryItem>(value);
 
-  return categories.length > 0 ? categories : DEFAULT_EXPENSE_CATEGORIES;
+  return normalizeExpenseCategories(
+    categories.length > 0 ? categories : DEFAULT_EXPENSE_CATEGORIES
+  );
 }
 
-export function createDefaultPersistedFinanceData(): PersistedFinanceDataV1 {
+function getCategoryNameById(
+  categories: Array<{ id: string; name: string }>,
+  categoryId: string
+) {
+  return (
+    categories.find((category) => category.id === categoryId)?.name ?? "Другое"
+  );
+}
+
+function addCategorySnapshotsToExpenses(
+  expenses: Expense[],
+  categories: ExpenseCategoryItem[]
+): Expense[] {
+  return expenses.map((expense) => ({
+    ...expense,
+    categoryNameSnapshot:
+      expense.categoryNameSnapshot ??
+      getCategoryNameById(categories, expense.category),
+  }));
+}
+
+export function createDefaultPersistedFinanceData(): PersistedFinanceDataV2 {
+  const expenseCategories = normalizeExpenseCategories(
+    DEFAULT_EXPENSE_CATEGORIES
+  );
+
   return {
     schemaVersion: CURRENT_FINANCE_SCHEMA_VERSION,
     data: {
@@ -75,7 +106,7 @@ export function createDefaultPersistedFinanceData(): PersistedFinanceDataV1 {
       fixedExpenses: [],
       recentExpenses: [],
       trackingStartedAt: new Date().toISOString(),
-      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
+      expenseCategories,
     },
   };
 }
@@ -83,16 +114,20 @@ export function createDefaultPersistedFinanceData(): PersistedFinanceDataV1 {
 export function isPersistedFinanceDataV1(
   value: unknown
 ): value is PersistedFinanceDataV1 {
-  return (
-    isRecord(value) && value.schemaVersion === 1 && isRecord(value.data)
-  );
+  return isRecord(value) && value.schemaVersion === 1 && isRecord(value.data);
+}
+
+export function isPersistedFinanceDataV2(
+  value: unknown
+): value is PersistedFinanceDataV2 {
+  return isRecord(value) && value.schemaVersion === 2 && isRecord(value.data);
 }
 
 export function migrateLegacyFinanceStorage(
   legacy: LegacyFinanceStorageData
 ): PersistedFinanceDataV1 {
   return {
-    schemaVersion: CURRENT_FINANCE_SCHEMA_VERSION,
+    schemaVersion: 1,
     data: {
       monthlyBudget: normalizeMonthlyBudget(legacy.monthlyBudget),
       salaryDay: normalizeSalaryDay(legacy.salaryDay),
@@ -100,19 +135,91 @@ export function migrateLegacyFinanceStorage(
       fixedExpenses: normalizeArray<FixedExpense>(legacy.fixedExpenses),
       recentExpenses: normalizeArray<Expense>(legacy.recentExpenses),
       trackingStartedAt: normalizeTrackingStartedAt(legacy.trackingStartedAt),
-      expenseCategories: normalizeExpenseCategories(legacy.expenseCategories),
+      expenseCategories: normalizeLegacyExpenseCategories(
+        legacy.expenseCategories
+      ),
     },
   };
 }
 
-export function migrateFinanceStorage(raw: unknown): PersistedFinanceDataV1 {
-  if (isPersistedFinanceDataV1(raw)) {
-    return raw;
+function migrateV1ToV2(data: PersistedFinanceDataV1): PersistedFinanceDataV2 {
+  const expenseCategories = normalizeExpenseCategories(
+    data.data.expenseCategories
+  );
+
+  return {
+    schemaVersion: 2,
+    data: {
+      ...data.data,
+      expenseCategories,
+      recentExpenses: addCategorySnapshotsToExpenses(
+        data.data.recentExpenses,
+        expenseCategories
+      ),
+    },
+  };
+}
+
+function normalizePersistedV2Data(
+  data: PersistedFinanceDataV2
+): PersistedFinanceDataV2 {
+  const expenseCategories = normalizeExpenseCategories(
+    data.data.expenseCategories
+  );
+
+  return {
+    schemaVersion: 2,
+    data: {
+      ...data.data,
+      expenseCategories,
+      recentExpenses: addCategorySnapshotsToExpenses(
+        data.data.recentExpenses,
+        expenseCategories
+      ),
+    },
+  };
+}
+
+function migrateToV1(value: unknown): PersistedFinanceDataV1 {
+  if (isPersistedFinanceDataV1(value)) {
+    return {
+      schemaVersion: 1,
+      data: {
+        monthlyBudget: normalizeMonthlyBudget(value.data.monthlyBudget),
+        salaryDay: normalizeSalaryDay(value.data.salaryDay),
+        currency: normalizeCurrency(value.data.currency),
+        fixedExpenses: normalizeArray<FixedExpense>(
+          value.data.fixedExpenses
+        ),
+        recentExpenses: normalizeArray<Expense>(value.data.recentExpenses),
+        trackingStartedAt: normalizeTrackingStartedAt(
+          value.data.trackingStartedAt
+        ),
+        expenseCategories: normalizeLegacyExpenseCategories(
+          value.data.expenseCategories
+        ),
+      },
+    };
   }
 
-  if (isRecord(raw)) {
-    return migrateLegacyFinanceStorage(raw);
+  if (isRecord(value)) {
+    return migrateLegacyFinanceStorage(value as LegacyFinanceStorageData);
   }
 
-  return createDefaultPersistedFinanceData();
+  const fallback = createDefaultPersistedFinanceData();
+
+  return {
+    schemaVersion: 1,
+    data: fallback.data,
+  };
+}
+
+export function migrateFinanceStorage(value: unknown): PersistedFinanceDataV2 {
+  if (isPersistedFinanceDataV2(value)) {
+    return normalizePersistedV2Data(value);
+  }
+
+  const v1 = migrateToV1(value);
+
+  return migrateV1ToV2(v1);
 }
