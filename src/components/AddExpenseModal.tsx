@@ -3,6 +3,10 @@ import { Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { BottomSheet } from "@/components/BottomSheet";
+import {
+  getActiveExpenseCategories,
+  hasReachedActiveCategoryLimit,
+} from "@/domain/categoryUtils";
 import type { ExpenseCategoryItem } from "@/hooks/useFinanceStore";
 
 type AddExpenseModalProps = {
@@ -88,8 +92,8 @@ export function AddExpenseModal({
     return Number.isFinite(parsed) && parsed > 0;
   }, [amount]);
 
-  const customCategoriesCount = categories.filter((item) => !item.system).length;
-  const canAddCategory = customCategoriesCount < 5;
+  const activeCategories = getActiveExpenseCategories(categories);
+  const canAddCategory = !hasReachedActiveCategoryLimit(categories);
 
   const handleSubmit = () => {
     const parsed = Number(amount.replace(",", "."));
@@ -103,7 +107,8 @@ export function AddExpenseModal({
   const handleAddCategory = () => {
     const trimmed = newCategoryName.trim();
 
-    if (!trimmed || trimmed.length > 12) return;
+    if (!trimmed || trimmed.length > 14) return;
+    if (!canAddCategory) return;
 
     onAddCategory(trimmed);
     setNewCategoryName("");
@@ -159,12 +164,12 @@ export function AddExpenseModal({
             </label>
 
             <span className="shrink-0 text-xs text-zinc-500">
-              Кастомные: {customCategoriesCount}/5
+              Активные: {activeCategories.length}/10
             </span>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {categories.map((category) => {
+            {activeCategories.map((category) => {
               const selected = selectedCategory === category.id;
 
               return (
@@ -176,7 +181,7 @@ export function AddExpenseModal({
                     "inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm transition",
                     selected
                       ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                      : "border-zinc-200 bg-white text-zinc-900"
+                      : "border-zinc-200 bg-white text-zinc-900",
                   )}
                 >
                   <span className="text-sm">{getCategoryVisual(category)}</span>
@@ -194,6 +199,13 @@ export function AddExpenseModal({
                 <Plus className="h-3.5 w-3.5" />
                 <span>Новая</span>
               </button>
+            )}
+
+            {!canAddCategory && (
+              <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                Лимит — 10 активных категорий. Чтобы добавить новую, скройте
+                ненужную категорию в настройках.
+              </div>
             )}
           </div>
 
@@ -246,7 +258,7 @@ export function AddExpenseModal({
             "flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold transition",
             canSubmit
               ? "bg-indigo-600 text-white"
-              : "bg-zinc-100 text-zinc-400"
+              : "bg-zinc-100 text-zinc-400",
           )}
         >
           Сохранить расход
