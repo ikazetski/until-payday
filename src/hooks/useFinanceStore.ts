@@ -18,6 +18,14 @@ import type {
   FixedExpense,
 } from "@/domain/financeTypes";
 
+import {
+  ALWAYS_ACTIVE_CATEGORY_ID,
+  MAX_ACTIVE_EXPENSE_CATEGORIES,
+  getActiveExpenseCategories,
+  hasCategoryName,
+  normalizeExpenseCategories,
+} from "@/domain/categoryUtils";
+
 export type {
   CurrencyCode,
   Expense,
@@ -72,6 +80,11 @@ type FinanceStore = {
   currentWeekEnd: Date;
 
   addExpenseCategory: (name: string) => void;
+  hideExpenseCategory: (id: string) => boolean;
+  restoreExpenseCategory: (id: string) => boolean;
+  renameExpenseCategory: (id: string, name: string) => boolean;
+  moveExpenseCategoryUp: (id: string) => void;
+  moveExpenseCategoryDown: (id: string) => void;
 
   addExpense: (amount: number, category: ExpenseCategory) => void;
   removeExpense: (id: string) => void;
@@ -83,7 +96,7 @@ type FinanceStore = {
   updateSettings: (
     monthlyBudget: number,
     salaryDay: number,
-    currency: CurrencyCode
+    currency: CurrencyCode,
   ) => void;
   restoreSettings: (snapshot: SettingsSnapshot) => void;
 
@@ -118,6 +131,68 @@ function persistAndRecalculate(data: PersistedData) {
   };
 }
 
+function getNextCategoryOrder(categories: ExpenseCategoryItem[]) {
+  const orders = categories
+    .map((category) => category.order)
+    .filter((order): order is number => typeof order === "number");
+
+  return orders.length === 0 ? 0 : Math.max(...orders) + 1;
+}
+
+function sortCategoriesByOrder(categories: ExpenseCategoryItem[]) {
+  return [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+function reorderCategories(categories: ExpenseCategoryItem[]) {
+  return sortCategoriesByOrder(categories).map((category, index) => ({
+    ...category,
+    order: index,
+  }));
+}
+
+function moveCategory(
+  categories: ExpenseCategoryItem[],
+  categoryId: string,
+  direction: "up" | "down",
+) {
+  const normalized = reorderCategories(categories);
+  const activeCategories = normalized.filter((category) => !category.hidden);
+  const activeIndex = activeCategories.findIndex(
+    (category) => category.id === categoryId,
+  );
+
+  if (activeIndex === -1) return normalized;
+
+  const targetIndex = direction === "up" ? activeIndex - 1 : activeIndex + 1;
+
+  if (targetIndex < 0 || targetIndex >= activeCategories.length) {
+    return normalized;
+  }
+
+  const currentCategory = activeCategories[activeIndex];
+  const targetCategory = activeCategories[targetIndex];
+
+  return reorderCategories(
+    normalized.map((category) => {
+      if (category.id === currentCategory.id) {
+        return {
+          ...category,
+          order: targetCategory.order,
+        };
+      }
+
+      if (category.id === targetCategory.id) {
+        return {
+          ...category,
+          order: currentCategory.order,
+        };
+      }
+
+      return category;
+    }),
+  );
+}
+
 const initialData = createFallbackFinanceState();
 const initialDerived = calculateFinance(initialData);
 
@@ -128,28 +203,28 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   storageSource: "loading",
 
   hydrate: async () => {
-  try {
-    const result = await bootstrapFinanceStorage();
+    try {
+      const result = await bootstrapFinanceStorage();
 
-    set({
-      ...result.state,
-      ...calculateFinance(result.state),
-      isHydrated: true,
-      storageSource: result.source,
-    });
-  } catch (error) {
-    console.error("Failed to hydrate finance storage", error);
+      set({
+        ...result.state,
+        ...calculateFinance(result.state),
+        isHydrated: true,
+        storageSource: result.source,
+      });
+    } catch (error) {
+      console.error("Failed to hydrate finance storage", error);
 
-    const currentData = selectPersistedData(get());
+      const currentData = selectPersistedData(get());
 
-    set({
-      ...currentData,
-      ...calculateFinance(currentData),
-      isHydrated: true,
-      storageSource: "error",
-    });
-  }
-},
+      set({
+        ...currentData,
+        ...calculateFinance(currentData),
+        isHydrated: true,
+        storageSource: "error",
+      });
+    }
+  },
 
   addExpenseCategory: (name: string) => {
     const current = get();
@@ -158,27 +233,162 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     if (!trimmed) return;
     if (trimmed.length > 12) return;
 
-    const existsAlready = current.expenseCategories.some(
-      (item) => item.name.trim().toLowerCase() === trimmed.toLowerCase()
+    const normalizedCategories = normalizeExpenseCategories(
+      current.expenseCategories,
     );
 
-    if (existsAlready) return;
+    if (hasCategoryName(normalizedCategories, trimmed)) return;
 
-    const customCategoriesCount = current.expenseCategories.filter(
-      (item) => !item.system
-    ).length;
+    const activeCategories = getActiveExpenseCategories(normalizedCategories);
 
-    if (customCategoriesCount >= 5) return;
+    if (activeCategories.length >= MAX_ACTIVE_EXPENSE_CATEGORIES) return;
 
     const newCategory: ExpenseCategoryItem = {
-      id: `custom_${Date.now()}`,
+      id: `custom_${crypto.randomUUID()}`,
       name: trimmed,
       system: false,
+      hidden: false,
+      order: getNextCategoryOrder(normalizedCategories),
     };
 
     const updatedData: PersistedData = {
       ...selectPersistedData(current),
-      expenseCategories: [...current.expenseCategories, newCategory],
+      expenseCategories: reorderCategories([
+        ...normalizedCategories,
+        newCategory,
+      ]),
+    };
+
+    set(persistAndRecalculate(updatedData));
+  },
+
+  hideExpenseCategory: (id: string) => {
+    if (id === ALWAYS_ACTIVE_CATEGORY_ID) return false;
+
+    const current = get();
+    const normalizedCategories = normalizeExpenseCategories(
+      current.expenseCategories,
+    );
+
+    const exists = normalizedCategories.some((category) => category.id === id);
+    if (!exists) return false;
+
+    const updatedCategories = reorderCategories(
+      normalizedCategories.map((category) =>
+        category.id === id
+          ? {
+              ...category,
+              hidden: true,
+            }
+          : category,
+      ),
+    );
+
+    const updatedData: PersistedData = {
+      ...selectPersistedData(current),
+      expenseCategories: updatedCategories,
+    };
+
+    set(persistAndRecalculate(updatedData));
+    return true;
+  },
+
+  restoreExpenseCategory: (id: string) => {
+    const current = get();
+    const normalizedCategories = normalizeExpenseCategories(
+      current.expenseCategories,
+    );
+
+    const targetCategory = normalizedCategories.find(
+      (category) => category.id === id,
+    );
+
+    if (!targetCategory) return false;
+    if (!targetCategory.hidden) return true;
+
+    const activeCategories = getActiveExpenseCategories(normalizedCategories);
+
+    if (activeCategories.length >= MAX_ACTIVE_EXPENSE_CATEGORIES) {
+      return false;
+    }
+
+    const updatedCategories = reorderCategories(
+      normalizedCategories.map((category) =>
+        category.id === id
+          ? {
+              ...category,
+              hidden: false,
+              order: getNextCategoryOrder(normalizedCategories),
+            }
+          : category,
+      ),
+    );
+
+    const updatedData: PersistedData = {
+      ...selectPersistedData(current),
+      expenseCategories: updatedCategories,
+    };
+
+    set(persistAndRecalculate(updatedData));
+    return true;
+  },
+
+  renameExpenseCategory: (id: string, name: string) => {
+    if (id === ALWAYS_ACTIVE_CATEGORY_ID) return false;
+
+    const current = get();
+    const trimmed = name.trim();
+
+    if (!trimmed) return false;
+    if (trimmed.length > 12) return false;
+
+    const normalizedCategories = normalizeExpenseCategories(
+      current.expenseCategories,
+    );
+
+    const targetCategory = normalizedCategories.find(
+      (category) => category.id === id,
+    );
+
+    if (!targetCategory) return false;
+    if (targetCategory.system) return false;
+    if (hasCategoryName(normalizedCategories, trimmed, id)) return false;
+
+    const updatedCategories = normalizedCategories.map((category) =>
+      category.id === id
+        ? {
+            ...category,
+            name: trimmed,
+          }
+        : category,
+    );
+
+    const updatedData: PersistedData = {
+      ...selectPersistedData(current),
+      expenseCategories: reorderCategories(updatedCategories),
+    };
+
+    set(persistAndRecalculate(updatedData));
+    return true;
+  },
+
+  moveExpenseCategoryUp: (id: string) => {
+    const current = get();
+
+    const updatedData: PersistedData = {
+      ...selectPersistedData(current),
+      expenseCategories: moveCategory(current.expenseCategories, id, "up"),
+    };
+
+    set(persistAndRecalculate(updatedData));
+  },
+
+  moveExpenseCategoryDown: (id: string) => {
+    const current = get();
+
+    const updatedData: PersistedData = {
+      ...selectPersistedData(current),
+      expenseCategories: moveCategory(current.expenseCategories, id, "down"),
     };
 
     set(persistAndRecalculate(updatedData));
@@ -186,7 +396,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
 
   addExpense: (amount, category) => {
     const current = get();
-    
+
     const categoryName =
       current.expenseCategories.find((item) => item.id === category)?.name ??
       "Другое";
@@ -249,7 +459,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
               name,
               amount: roundMoney(amount),
             }
-          : item
+          : item,
       ),
     };
 
