@@ -261,21 +261,27 @@ export function SettingsSheet({
     const trimmed = newCategoryName.trim();
 
     if (!trimmed) return;
+
     if (trimmed.length > 12) {
       showToast("Название категории — до 12 символов.");
       return;
     }
 
-    if (activeLimitReached) {
-      showToast("Лимит активных категорий — 10. Сначала скройте ненужную.");
-      return;
-    }
+    const wasLimitReached = activeLimitReached;
 
     addExpenseCategory(trimmed);
     setNewCategoryName("");
     setIsAddingCategory(false);
     setEditingCategoryId(null);
     setEditingCategoryName("");
+
+    if (wasLimitReached) {
+      showToast(
+        "Категория добавлена в скрытые. Скройте активную категорию, чтобы вернуть новую.",
+      );
+      return;
+    }
+
     showToast("Категория добавлена.");
   };
 
@@ -699,7 +705,7 @@ export function SettingsSheet({
               </div>
 
               <div className="mt-3">
-                {!activeLimitReached && !isAddingCategory && (
+                {!isAddingCategory && (
                   <button
                     type="button"
                     onClick={() => {
@@ -714,11 +720,11 @@ export function SettingsSheet({
                   </button>
                 )}
 
-                {activeLimitReached && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                    Достигнут лимит: {MAX_ACTIVE_EXPENSE_CATEGORIES} активных
-                    категорий. Скройте ненужную категорию, чтобы добавить новую.
-                  </div>
+                {activeLimitReached && !isAddingCategory && (
+                  <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                    Активный список заполнен. Новые категории будут добавляться
+                    в скрытые.
+                  </p>
                 )}
 
                 {isAddingCategory && (

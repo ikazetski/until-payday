@@ -28,7 +28,9 @@ const Index = () => {
 
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"home" | "analytics" | "history">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "analytics" | "history">(
+    "home",
+  );
   const [showWeeklyInfo, setShowWeeklyInfo] = useState(false);
   const [showMonthlyInfo, setShowMonthlyInfo] = useState(false);
   const [activeCard, setActiveCard] = useState<0 | 1>(0);
@@ -84,7 +86,7 @@ const Index = () => {
   const handleSettingsSave = (
     monthlyBudget: number,
     salaryDay: number,
-    currency: typeof store.currency
+    currency: typeof store.currency,
   ) => {
     const snapshot = {
       monthlyBudget: store.monthlyBudget,
@@ -128,8 +130,8 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-      void hydrate();
-    }, [hydrate]);
+    void hydrate();
+  }, [hydrate]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -171,7 +173,7 @@ const Index = () => {
     const endExclusive = new Date(
       store.currentWeekEnd.getFullYear(),
       store.currentWeekEnd.getMonth(),
-      store.currentWeekEnd.getDate() + 1
+      store.currentWeekEnd.getDate() + 1,
     ).getTime();
 
     return store.recentExpenses.filter((expense) => {
@@ -187,7 +189,7 @@ const Index = () => {
       ? `${format(store.currentWeekStart, "d MMM", { locale: ru })} – ${format(
           store.currentWeekEnd,
           "d MMM",
-          { locale: ru }
+          { locale: ru },
         )}`
       : `До ${format(store.nextSalaryDate, "d MMMM", { locale: ru })}`;
 
@@ -221,8 +223,8 @@ const Index = () => {
     weekPlanValue < 0
       ? "Перерасход"
       : weekPlanValue > 0
-      ? "Сэкономлено"
-      : "По плану";
+        ? "Сэкономлено"
+        : "По плану";
 
   const weekPlanDisplay =
     weekPlanValue < 0
@@ -234,8 +236,8 @@ const Index = () => {
     monthPlanValue < 0
       ? "Перерасход"
       : monthPlanValue > 0
-      ? "Сэкономлено"
-      : "По плану";
+        ? "Сэкономлено"
+        : "По плану";
 
   const monthPlanDisplay =
     monthPlanValue < 0
@@ -282,7 +284,7 @@ const Index = () => {
 
   const weeklyAvailableToday = Math.min(
     Math.max(0, store.weeklyTodayAvailable),
-    Math.max(0, store.weeklyRemaining)
+    Math.max(0, store.weeklyRemaining),
   );
 
   if (!isHydrated) {
@@ -318,11 +320,11 @@ const Index = () => {
   }
 
   if (activeTab === "analytics") {
-  return (
-    <>
-      <AnalyticsScreen />
-      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
-    </>
+    return (
+      <>
+        <AnalyticsScreen />
+        <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+      </>
     );
   }
 
@@ -377,12 +379,12 @@ const Index = () => {
             <div className="mt-3 flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5 text-white/40" />
               <p className="text-xs text-white/40">
-                Неделя {format(store.currentWeekStart, "d MMM", { locale: ru })} –{" "}
-                {format(store.currentWeekEnd, "d MMM", { locale: ru })}
+                Неделя {format(store.currentWeekStart, "d MMM", { locale: ru })}{" "}
+                – {format(store.currentWeekEnd, "d MMM", { locale: ru })}
               </p>
             </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5">
+            <div className="mt-5 grid grid-cols-[0.95fr_1.2fr_0.95fr] items-start gap-3 border-t border-white/15 pt-5">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-white/50">На сегодня</p>
                 <p className="text-2xl font-bold text-white">
@@ -396,28 +398,21 @@ const Index = () => {
                 </p>
               </div>
 
-              <div>
-                <div className={cn("text-sm", weeklyTone.muted)}>
+              <div className="min-w-0 text-center">
+                <div className={cn("text-sm leading-tight", weeklyTone.muted)}>
                   {weekPlanTitle}
                 </div>
 
-                <div
-                  className={cn(
-                    "text-2xl font-semibold",
-                    store.weeklySavings < 0
-                      ? weeklyTone.negative
-                      : weeklyTone.value
-                  )}
-                >
+                <div className="truncate whitespace-nowrap text-[1.55rem] font-semibold leading-tight text-white">
                   {weekPlanDisplay}
                 </div>
 
-                <div className={cn("text-xs", weeklyTone.muted)}>
+                <div className={cn("text-xs leading-tight", weeklyTone.muted)}>
                   по неделе
                 </div>
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 text-right">
                 <p className="text-xs font-medium text-white/50">Потрачено</p>
                 <p className="text-2xl font-bold text-white">
                   {formatMoney(store.spentToday)}
@@ -432,14 +427,15 @@ const Index = () => {
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-white/40">Прогресс недели</span>
                 <span className="text-sm font-semibold text-white/70">
-                  {formatMoney(store.weeklySpent)} / {formatMoney(store.weeklyBudget)}
+                  {formatMoney(store.weeklySpent)} /{" "}
+                  {formatMoney(store.weeklyBudget)}
                 </span>
               </div>
 
               <div
                 className={cn(
                   "h-2 overflow-hidden rounded-full",
-                  weeklyTone.progressTrack
+                  weeklyTone.progressTrack,
                 )}
               >
                 <div
@@ -447,7 +443,7 @@ const Index = () => {
                   style={{
                     width: `${getProgressWidth(
                       store.weeklySpent,
-                      store.weeklyBudget
+                      store.weeklyBudget,
                     )}%`,
                   }}
                 />
@@ -484,11 +480,12 @@ const Index = () => {
             <div className="mt-3 flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5 text-white/40" />
               <p className="text-xs text-white/40">
-                Зарплата {format(store.nextSalaryDate, "d MMMM", { locale: ru })}
+                Зарплата{" "}
+                {format(store.nextSalaryDate, "d MMMM", { locale: ru })}
               </p>
             </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5">
+            <div className="mt-5 grid grid-cols-[0.95fr_1.2fr_0.95fr] items-start gap-3 border-t border-white/15 pt-5">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-white/50">На сегодня</p>
                 <p className="text-2xl font-bold text-white">
@@ -502,26 +499,21 @@ const Index = () => {
                 </p>
               </div>
 
-              <div>
-                <div className={cn("text-sm", monthlyTone.muted)}>
+              <div className="min-w-0 text-center">
+                <div className={cn("text-sm leading-tight", monthlyTone.muted)}>
                   {monthPlanTitle}
                 </div>
 
-                <div
-                  className={cn(
-                    "text-2xl font-semibold",
-                    store.savings < 0 ? monthlyTone.negative : monthlyTone.value
-                  )}
-                >
+                <div className="truncate whitespace-nowrap text-[1.55rem] font-semibold leading-tight text-white">
                   {monthPlanDisplay}
                 </div>
 
-                <div className={cn("text-xs", monthlyTone.muted)}>
+                <div className={cn("text-xs leading-tight", monthlyTone.muted)}>
                   по периоду
                 </div>
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 text-right">
                 <p className="text-xs font-medium text-white/50">Потрачено</p>
                 <p className="text-2xl font-bold text-white">
                   {formatMoney(store.totalSpentCore)}
@@ -536,22 +528,26 @@ const Index = () => {
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-white/40">Прогресс периода</span>
                 <span className="text-sm font-semibold text-white/70">
-                  {formatMoney(store.totalSpentCore)} / {formatMoney(store.monthlyBudget)}
+                  {formatMoney(store.totalSpentCore)} /{" "}
+                  {formatMoney(store.monthlyBudget)}
                 </span>
               </div>
 
               <div
                 className={cn(
                   "h-2 overflow-hidden rounded-full",
-                  monthlyTone.progressTrack
+                  monthlyTone.progressTrack,
                 )}
               >
                 <div
-                  className={cn("h-full rounded-full", monthlyTone.progressFill)}
+                  className={cn(
+                    "h-full rounded-full",
+                    monthlyTone.progressFill,
+                  )}
                   style={{
                     width: `${getProgressWidth(
                       store.totalSpentCore,
-                      store.monthlyBudget
+                      store.monthlyBudget,
                     )}%`,
                   }}
                 />
@@ -568,7 +564,7 @@ const Index = () => {
             onClick={() => goToCard(index as 0 | 1)}
             className={cn(
               "h-2.5 w-2.5 rounded-full transition-all",
-              activeCard === index ? "bg-gray-900" : "bg-gray-300"
+              activeCard === index ? "bg-gray-900" : "bg-gray-300",
             )}
             aria-label={index === 0 ? "Карточка недели" : "Карточка периода"}
           />
@@ -615,7 +611,9 @@ const Index = () => {
         <div className="fixed bottom-20 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-lg">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm">
-              Расход {formatMoneyWithCurrency(undoExpense.amount, store.currency)} добавлен
+              Расход{" "}
+              {formatMoneyWithCurrency(undoExpense.amount, store.currency)}{" "}
+              добавлен
             </span>
 
             <button
@@ -728,8 +726,8 @@ const Index = () => {
 
             <div className="space-y-3 text-sm text-foreground">
               <p>
-                <strong>Остаток периода</strong> показывает, сколько денег осталось
-                до зарплаты.
+                <strong>Остаток периода</strong> показывает, сколько денег
+                осталось до зарплаты.
               </p>
 
               <p>
@@ -738,8 +736,8 @@ const Index = () => {
               </p>
 
               <p>
-                <strong>По периоду</strong> показывает, как вы идёте относительно
-                общего плана до зарплаты:
+                <strong>По периоду</strong> показывает, как вы идёте
+                относительно общего плана до зарплаты:
               </p>
 
               <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">

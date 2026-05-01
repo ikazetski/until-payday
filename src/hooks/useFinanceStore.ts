@@ -240,14 +240,14 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     if (hasCategoryName(normalizedCategories, trimmed)) return;
 
     const activeCategories = getActiveExpenseCategories(normalizedCategories);
-
-    if (activeCategories.length >= MAX_ACTIVE_EXPENSE_CATEGORIES) return;
+    const shouldCreateHidden =
+      activeCategories.length >= MAX_ACTIVE_EXPENSE_CATEGORIES;
 
     const newCategory: ExpenseCategoryItem = {
       id: `custom_${crypto.randomUUID()}`,
       name: trimmed,
       system: false,
-      hidden: false,
+      hidden: shouldCreateHidden,
       order: getNextCategoryOrder(normalizedCategories),
     };
 

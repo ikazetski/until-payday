@@ -3,10 +3,7 @@ import { Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { BottomSheet } from "@/components/BottomSheet";
-import {
-  getActiveExpenseCategories,
-  hasReachedActiveCategoryLimit,
-} from "@/domain/categoryUtils";
+import { getActiveExpenseCategories } from "@/domain/categoryUtils";
 import type { ExpenseCategoryItem } from "@/hooks/useFinanceStore";
 
 type AddExpenseModalProps = {
@@ -93,7 +90,6 @@ export function AddExpenseModal({
   }, [amount]);
 
   const activeCategories = getActiveExpenseCategories(categories);
-  const canAddCategory = !hasReachedActiveCategoryLimit(categories);
 
   const handleSubmit = () => {
     const parsed = Number(amount.replace(",", "."));
@@ -107,8 +103,7 @@ export function AddExpenseModal({
   const handleAddCategory = () => {
     const trimmed = newCategoryName.trim();
 
-    if (!trimmed || trimmed.length > 14) return;
-    if (!canAddCategory) return;
+    if (!trimmed || trimmed.length > 12) return;
 
     onAddCategory(trimmed);
     setNewCategoryName("");
@@ -190,7 +185,7 @@ export function AddExpenseModal({
               );
             })}
 
-            {canAddCategory && !isAddingCategory && (
+            {!isAddingCategory && (
               <button
                 type="button"
                 onClick={() => setIsAddingCategory(true)}
@@ -199,13 +194,6 @@ export function AddExpenseModal({
                 <Plus className="h-3.5 w-3.5" />
                 <span>Новая</span>
               </button>
-            )}
-
-            {!canAddCategory && (
-              <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                Лимит — 10 активных категорий. Чтобы добавить новую, скройте
-                ненужную категорию в настройках.
-              </div>
             )}
           </div>
 
@@ -244,9 +232,8 @@ export function AddExpenseModal({
           )}
 
           <p className="mt-2 text-xs text-zinc-500">
-            {canAddCategory
-              ? "Можно показывать до 10 активных категорий. Название — до 12 символов."
-              : "Чтобы добавить новую категорию, скройте ненужную в настройках."}
+            Можно показывать до 10 активных категорий. Если список заполнен, новая
+            категория попадёт в скрытые.
           </p>
         </div>
       </div>

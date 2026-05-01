@@ -5,6 +5,7 @@ import { buildMonthlyGroups, buildWeeklyGroups } from "@/domain/historyEngine";
 import { SegmentedTabs } from "@/components/SegmentedTabs";
 import { useFinanceStore } from "@/hooks/useFinanceStore";
 import { getExpenseCategoryIcon, getExpenseCategoryName } from "@/lib/utils";
+import { useSwipeTabs } from "@/hooks/useSwipeTabs";
 
 type HistoryScreenProps = {
   expenses: Expense[];
@@ -170,6 +171,11 @@ export function HistoryScreen({
   currency,
 }: HistoryScreenProps) {
   const [mode, setMode] = useState<HistoryMode>("weeks");
+  const swipeHandlers = useSwipeTabs<HistoryMode>({
+    value: mode,
+    values: ["weeks", "months"],
+    onChange: setMode,
+  });
 
   const weeklyGroups = useMemo(
     () =>
@@ -204,28 +210,30 @@ export function HistoryScreen({
         ]}
       />
 
-      {visibleGroups.length === 0 ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm font-medium text-gray-900">
-            История пока пуста
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            Добавь расходы, и здесь появится статистика по неделям и месяцам
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {visibleGroups.map((group) => (
-            <HistoryPeriodCard
-              key={group.id}
-              group={group}
-              mode={mode}
-              currency={currency}
-              expenseCategories={expenseCategories}
-            />
-          ))}
-        </div>
-      )}
+      <div {...swipeHandlers}>
+        {visibleGroups.length === 0 ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-medium text-gray-900">
+              История пока пуста
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              Добавь расходы, и здесь появится статистика по неделям и месяцам
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {visibleGroups.map((group) => (
+              <HistoryPeriodCard
+                key={group.id}
+                group={group}
+                mode={mode}
+                currency={currency}
+                expenseCategories={expenseCategories}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
