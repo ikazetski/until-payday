@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ChevronRight,
   EyeOff,
+  Pencil,
   Plus,
   RotateCcw,
 } from "lucide-react";
@@ -118,6 +119,10 @@ export function SettingsSheet({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null,
+  );
+  const [editingCategoryName, setEditingCategoryName] = useState("");
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
   const today = startOfToday();
@@ -134,6 +139,9 @@ export function SettingsSheet({
   );
   const restoreExpenseCategory = useFinanceStore(
     (state) => state.restoreExpenseCategory,
+  );
+  const renameExpenseCategory = useFinanceStore(
+    (state) => state.renameExpenseCategory,
   );
   const moveExpenseCategoryUp = useFinanceStore(
     (state) => state.moveExpenseCategoryUp,
@@ -192,6 +200,44 @@ export function SettingsSheet({
   const showToast = (message: string) => {
     setToastMessage(message);
   };
+  const handleStartRenameCategory = (
+    categoryId: string,
+    currentName: string,
+  ) => {
+    setEditingCategoryId(categoryId);
+    setEditingCategoryName(currentName);
+    setIsAddingCategory(false);
+    setNewCategoryName("");
+  };
+
+  const handleCancelRenameCategory = () => {
+    setEditingCategoryId(null);
+    setEditingCategoryName("");
+  };
+
+  const handleRenameCategory = () => {
+    if (!editingCategoryId) return;
+
+    const trimmed = editingCategoryName.trim();
+
+    if (!trimmed) return;
+
+    if (trimmed.length > 12) {
+      showToast("Название категории — до 12 символов.");
+      return;
+    }
+
+    const success = renameExpenseCategory(editingCategoryId, trimmed);
+
+    if (!success) {
+      showToast("Не удалось переименовать категорию. Проверьте название.");
+      return;
+    }
+
+    setEditingCategoryId(null);
+    setEditingCategoryName("");
+    showToast("Категория переименована.");
+  };
 
   const hasCurrentPeriodExpenses = (categoryId: string) => {
     return recentExpenses.some((expense) => {
@@ -222,6 +268,8 @@ export function SettingsSheet({
     addExpenseCategory(trimmed);
     setNewCategoryName("");
     setIsAddingCategory(false);
+    setEditingCategoryId(null);
+    setEditingCategoryName("");
     showToast("Категория добавлена.");
   };
 
@@ -525,6 +573,8 @@ export function SettingsSheet({
                   const isAlwaysActive =
                     category.id === ALWAYS_ACTIVE_CATEGORY_ID;
                   const hasExpenses = hasCurrentPeriodExpenses(category.id);
+                  const canRename = !isAlwaysActive;
+                  const isEditing = editingCategoryId === category.id;
 
                   return (
                     <div
@@ -566,6 +616,22 @@ export function SettingsSheet({
                             <ArrowDown className="h-4 w-4" />
                           </button>
 
+                          {canRename && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleStartRenameCategory(
+                                  category.id,
+                                  category.name,
+                                )
+                              }
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+                              aria-label="Переименовать категорию"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+
                           {!isAlwaysActive && (
                             <button
                               type="button"
@@ -585,6 +651,42 @@ export function SettingsSheet({
                           скрыть.
                         </p>
                       )}
+
+                      {isEditing && (
+                        <div className="mt-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                          <p className="mb-2 text-xs font-medium text-zinc-600">
+                            Новое название
+                          </p>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={editingCategoryName}
+                              onChange={(event) =>
+                                setEditingCategoryName(event.target.value)
+                              }
+                              placeholder="Например: Одежда"
+                              maxLength={12}
+                              className="h-10 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none transition focus:border-indigo-500"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={handleRenameCategory}
+                              className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white"
+                            >
+                              OK
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleCancelRenameCategory}
+                            className="mt-2 text-xs font-medium text-zinc-500"
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -594,7 +696,11 @@ export function SettingsSheet({
                 {!activeLimitReached && !isAddingCategory && (
                   <button
                     type="button"
-                    onClick={() => setIsAddingCategory(true)}
+                    onClick={() => {
+                      setIsAddingCategory(true);
+                      setEditingCategoryId(null);
+                      setEditingCategoryName("");
+                    }}
                     className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                   >
                     <Plus className="h-4 w-4" />

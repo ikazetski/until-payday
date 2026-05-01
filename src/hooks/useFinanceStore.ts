@@ -273,6 +273,20 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const exists = normalizedCategories.some((category) => category.id === id);
     if (!exists) return false;
 
+    const hasExpensesInCurrentPeriod = current.recentExpenses.some(
+      (expense) => {
+        const expenseTime = new Date(expense.createdAt).getTime();
+
+        return (
+          expense.category === id &&
+          expenseTime >= current.currentCycleStart.getTime() &&
+          expenseTime < current.nextSalaryDate.getTime()
+        );
+      },
+    );
+
+    if (hasExpensesInCurrentPeriod) return false;
+
     const updatedCategories = reorderCategories(
       normalizedCategories.map((category) =>
         category.id === id
@@ -351,7 +365,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     );
 
     if (!targetCategory) return false;
-    if (targetCategory.system) return false;
     if (hasCategoryName(normalizedCategories, trimmed, id)) return false;
 
     const updatedCategories = normalizedCategories.map((category) =>
