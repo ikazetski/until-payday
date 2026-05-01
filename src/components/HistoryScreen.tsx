@@ -127,10 +127,11 @@ function HistoryPeriodCard({
                           )}
                         </p>
                         <p className="truncate text-xs text-gray-500">
-                          {getExpenseCategoryName(
-                            expense.category,
-                            expenseCategories,
-                          )}
+                          {expense.categoryNameSnapshot ??
+                            getExpenseCategoryName(
+                              expense.category,
+                              expenseCategories,
+                            )}
                         </p>
                       </div>
                     </div>

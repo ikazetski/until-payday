@@ -213,6 +213,9 @@ function DonutChart({
     gradientId: `analytics-donut-gradient-${index}`,
   }));
 
+  const safeActiveIndex =
+  chartData.length === 0 ? -1 : Math.min(activeIndex, chartData.length - 1);
+
   return (
     <div className="analytics-chart-shell relative h-[280px] w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -263,7 +266,7 @@ function DonutChart({
             shape={(props: PieShapeProps) =>
               renderPieShape({
                 ...props,
-                isActive: props.index === activeIndex,
+                isActive: props.index === safeActiveIndex,
               })
             }
             onMouseEnter={(_, index) => setActiveIndex(index)}

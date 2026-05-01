@@ -60,7 +60,11 @@ function getMondayBasedDayIndex(dateInput: string | number | Date) {
 
 function startOfDayTs(dateInput: string | number | Date) {
   const date = new Date(dateInput);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  ).getTime();
 }
 
 function formatWeekRangeLabel(start: Date, end: Date) {
@@ -78,7 +82,7 @@ export function buildAnalyticsSummary(params: {
   const { expenses, categories } = params;
 
   const categoryMap = new Map(
-    categories.map((category) => [category.id, category.name])
+    categories.map((category) => [category.id, category.name]),
   );
 
   const grouped = new Map<
@@ -92,18 +96,22 @@ export function buildAnalyticsSummary(params: {
   >();
 
   for (const expense of expenses) {
-    const id = expense.category;
-    const name = categoryMap.get(id) ?? "Без категории";
+    const categoryName =
+      expense.categoryNameSnapshot ??
+      categoryMap.get(expense.category) ??
+      "Без категории";
 
-    const existing = grouped.get(id);
+    const categoryKey = `${expense.category}:${categoryName}`;
+
+    const existing = grouped.get(categoryKey);
 
     if (existing) {
       existing.amount += expense.amount;
       existing.transactions += 1;
     } else {
-      grouped.set(id, {
-        id,
-        name,
+      grouped.set(categoryKey, {
+        id: categoryKey,
+        name: categoryName,
         amount: expense.amount,
         transactions: 1,
       });
@@ -112,7 +120,7 @@ export function buildAnalyticsSummary(params: {
 
   const totalAmount = Array.from(grouped.values()).reduce(
     (sum, item) => sum + item.amount,
-    0
+    0,
   );
 
   const categoriesSorted = Array.from(grouped.values())
@@ -134,7 +142,10 @@ export function buildAnalyticsSummary(params: {
     const rest = categoriesSorted.slice(5);
 
     const restAmount = rest.reduce((sum, item) => sum + item.amount, 0);
-    const restTransactions = rest.reduce((sum, item) => sum + item.transactions, 0);
+    const restTransactions = rest.reduce(
+      (sum, item) => sum + item.transactions,
+      0,
+    );
     const restShare = rest.reduce((sum, item) => sum + item.share, 0);
 
     chartCategories = [
@@ -171,7 +182,9 @@ export function buildWeekSpendingRhythm(params: {
 
   const totalAmount = totals.reduce((sum, value) => sum + value, 0);
   const maxAmount = Math.max(...totals, 0);
-  const peakIndex = totals.findIndex((value) => value === maxAmount && value > 0);
+  const peakIndex = totals.findIndex(
+    (value) => value === maxAmount && value > 0,
+  );
 
   const items: SpendingRhythmItem[] = totals.map((amount, index) => ({
     key: `day-${index}`,
@@ -226,7 +239,7 @@ export function buildPeriodSpendingRhythm(params: {
     const bucket = weekRanges.find(
       (range) =>
         expenseTs >= startOfDayTs(range.start) &&
-        expenseTs <= startOfDayTs(range.end)
+        expenseTs <= startOfDayTs(range.end),
     );
 
     if (bucket) {
@@ -237,7 +250,7 @@ export function buildPeriodSpendingRhythm(params: {
   const totalAmount = weekRanges.reduce((sum, item) => sum + item.amount, 0);
   const maxAmount = Math.max(...weekRanges.map((item) => item.amount), 0);
   const peakIndex = weekRanges.findIndex(
-    (item) => item.amount === maxAmount && item.amount > 0
+    (item) => item.amount === maxAmount && item.amount > 0,
   );
 
   const items: SpendingRhythmItem[] = weekRanges.map((item, index) => ({
@@ -254,7 +267,10 @@ export function buildPeriodSpendingRhythm(params: {
       weekRanges.length > 0 ? round1(totalAmount / weekRanges.length) : 0,
     peakLabel:
       peakIndex >= 0
-        ? formatWeekRangeLabel(weekRanges[peakIndex].start, weekRanges[peakIndex].end)
+        ? formatWeekRangeLabel(
+            weekRanges[peakIndex].start,
+            weekRanges[peakIndex].end,
+          )
         : null,
     peakShare:
       totalAmount > 0 && peakIndex >= 0
@@ -276,7 +292,8 @@ export function buildAnalyticsAdvice(params: {
   if (summary.categories.length === 0) {
     return {
       title: "Совет",
-      description: "Добавь несколько расходов, чтобы увидеть структуру трат и рекомендации.",
+      description:
+        "Добавь несколько расходов, чтобы увидеть структуру трат и рекомендации.",
       tone: "neutral",
     };
   }
@@ -288,7 +305,7 @@ export function buildAnalyticsAdvice(params: {
     return {
       title: "Совет",
       description: `Сейчас есть перерасход. Начни с категории «${topCategory.name}» — она занимает ${topCategoryShare.toFixed(
-        0
+        0,
       )}% всех расходов и сильнее всего влияет на баланс.`,
       tone: "warning",
     };
@@ -298,7 +315,7 @@ export function buildAnalyticsAdvice(params: {
     return {
       title: "Совет",
       description: `Траты сильно сконцентрированы: топ-3 категории уже занимают ${summary.top3Share.toFixed(
-        0
+        0,
       )}% всех расходов. Попробуй сократить хотя бы одну из них.`,
       tone: "warning",
     };
@@ -308,7 +325,7 @@ export function buildAnalyticsAdvice(params: {
     return {
       title: "Совет",
       description: `Самый активный период — ${rhythm.peakLabel}. На него приходится ${rhythm.peakShare.toFixed(
-        0
+        0,
       )}% расходов. Проверь, не возникает ли основной перерасход именно здесь.`,
       tone: "neutral",
     };
@@ -317,7 +334,8 @@ export function buildAnalyticsAdvice(params: {
   if (periodDelta >= 0 && summary.top3Share <= 70) {
     return {
       title: "Совет",
-      description: "Расходы распределены достаточно ровно — баланс пока сохраняется без явного перекоса в одну категорию.",
+      description:
+        "Расходы распределены достаточно ровно — баланс пока сохраняется без явного перекоса в одну категорию.",
       tone: "positive",
     };
   }

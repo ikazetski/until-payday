@@ -240,11 +240,17 @@ export function SettingsSheet({
   };
 
   const hasCurrentPeriodExpenses = (categoryId: string) => {
+    const category = expenseCategories.find((item) => item.id === categoryId);
+
+    if (!category) return false;
+
     return recentExpenses.some((expense) => {
       const expenseTime = new Date(expense.createdAt).getTime();
+      const expenseCategoryName = expense.categoryNameSnapshot ?? category.name;
 
       return (
         expense.category === categoryId &&
+        expenseCategoryName === category.name &&
         expenseTime >= currentCycleStart.getTime() &&
         expenseTime < nextSalaryDate.getTime()
       );

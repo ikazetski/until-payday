@@ -273,12 +273,21 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const exists = normalizedCategories.some((category) => category.id === id);
     if (!exists) return false;
 
+    const targetCategory = normalizedCategories.find(
+      (category) => category.id === id,
+    );
+
+    if (!targetCategory) return false;
+
     const hasExpensesInCurrentPeriod = current.recentExpenses.some(
       (expense) => {
         const expenseTime = new Date(expense.createdAt).getTime();
+        const expenseCategoryName =
+          expense.categoryNameSnapshot ?? targetCategory.name;
 
         return (
           expense.category === id &&
+          expenseCategoryName === targetCategory.name &&
           expenseTime >= current.currentCycleStart.getTime() &&
           expenseTime < current.nextSalaryDate.getTime()
         );

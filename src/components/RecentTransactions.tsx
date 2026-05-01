@@ -30,7 +30,9 @@ export function RecentTransactions({
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Последние расходы</h3>
+          <h3 className="text-sm font-semibold text-gray-900">
+            Последние расходы
+          </h3>
           <p className="mt-0.5 text-xs text-gray-500">{periodTitle}</p>
         </div>
 
@@ -62,10 +64,16 @@ export function RecentTransactions({
 
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900">
-                        {getExpenseCategoryName(expense.category, expenseCategories)}
+                        {expense.categoryNameSnapshot ??
+                          getExpenseCategoryName(
+                            expense.category,
+                            expenseCategories,
+                          )}
                       </p>
                       <p className="truncate text-xs text-gray-500">
-                        {new Date(expense.createdAt).toLocaleDateString("ru-RU")}
+                        {new Date(expense.createdAt).toLocaleDateString(
+                          "ru-RU",
+                        )}
                       </p>
                     </div>
                   </div>
