@@ -106,6 +106,7 @@ function RhythmTooltip({
   payload?: Array<{
     payload: {
       label: string;
+      tooltipLabel?: string;
       amount: number;
       isPeak: boolean;
     };
@@ -122,7 +123,7 @@ function RhythmTooltip({
       className="rounded-2xl px-3 py-2 shadow-[0_14px_30px_rgba(15,23,42,0.18)]"
       style={{ backgroundColor: bg, color: "#fff" }}
     >
-      <p className="text-sm font-semibold">{item.label}</p>
+      <p className="text-sm font-semibold">{item.tooltipLabel ?? item.label}</p>
       <p className="text-xs mt-1 text-white/90">
         {formatMoneyWithCurrency(item.amount, currency as never)}
       </p>

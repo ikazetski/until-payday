@@ -20,6 +20,7 @@ export type AnalyticsSummary = {
 export type SpendingRhythmItem = {
   key: string;
   label: string;
+  tooltipLabel?: string;
   amount: number;
   isPeak: boolean;
 };
@@ -255,7 +256,8 @@ export function buildPeriodSpendingRhythm(params: {
 
   const items: SpendingRhythmItem[] = weekRanges.map((item, index) => ({
     key: `week-${index + 1}`,
-    label: `Нед ${index + 1}`,
+    label: `Н${index + 1}`,
+    tooltipLabel: formatWeekRangeLabel(item.start, item.end),
     amount: round1(item.amount),
     isPeak: index === peakIndex && item.amount > 0,
   }));
