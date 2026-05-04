@@ -24,6 +24,8 @@ export type HistoryGroup = {
   delta: number;
   expenses: Expense[];
   isCurrent: boolean;
+  rangeStart: Date;
+  rangeEndExclusive: Date;
 };
 
 type HistoryGroupWithSort = HistoryGroup & {
@@ -123,6 +125,8 @@ export function buildWeeklyGroups(
             expenses: visibleExpenses,
             isCurrent,
             sortTime: visibleStart.getTime(),
+            rangeStart: visibleRange.start,
+            rangeEndExclusive: visibleRange.endExclusive,
           });
         }
       }
@@ -182,6 +186,8 @@ export function buildMonthlyGroups(
       delta: roundMoney(monthlyBudget - total),
       expenses: cycleExpenses,
       isCurrent: i === 0,
+      rangeStart: cycleRange.start,
+      rangeEndExclusive: cycleRange.endExclusive,
     });
 
     previousCycleStartTime = cycleStart.getTime();

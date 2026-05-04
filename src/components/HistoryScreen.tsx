@@ -3,9 +3,14 @@ import { formatMoneyWithCurrency } from "@/lib/utils";
 import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 import { buildMonthlyGroups, buildWeeklyGroups } from "@/domain/historyEngine";
 import { SegmentedTabs } from "@/components/SegmentedTabs";
-import { useFinanceStore } from "@/hooks/useFinanceStore";
-import { getExpenseCategoryIcon, getExpenseCategoryName } from "@/lib/utils";
 import { useSwipeTabs } from "@/hooks/useSwipeTabs";
+
+export type SelectedAnalyticsRange = {
+  mode: "week" | "period";
+  title: string;
+  rangeStart: string;
+  rangeEndExclusive: string;
+};
 
 type HistoryScreenProps = {
   expenses: Expense[];
@@ -13,6 +18,7 @@ type HistoryScreenProps = {
   salaryDay: number;
   trackingStartedAt: string;
   currency: CurrencyCode;
+  onOpenAnalytics?: (range: SelectedAnalyticsRange) => void;
 };
 
 type HistoryMode = "weeks" | "months";
@@ -25,6 +31,9 @@ type PeriodGroup = {
   total: number;
   limit: number;
   delta: number;
+  isCurrent?: boolean;
+  rangeStart: Date;
+  rangeEndExclusive: Date;
 };
 
 function getDeltaLabel(
@@ -45,16 +54,13 @@ function HistoryPeriodCard({
   group,
   mode,
   currency,
-  expenseCategories,
+  onOpenAnalytics,
 }: {
   group: PeriodGroup;
   mode: HistoryMode;
   currency: CurrencyCode;
-  expenseCategories: { id: string; name: string }[];
+  onOpenAnalytics?: (range: SelectedAnalyticsRange) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const visibleExpenses = expanded ? group.expenses : [];
   const isCurrentPeriod = Boolean(group.subtitle);
 
   return (
@@ -101,63 +107,23 @@ function HistoryPeriodCard({
           </span>
         </div>
       </div>
-
       <div className="mt-4 border-t border-gray-200 pt-4">
-        {group.expenses.length === 0 ? (
-          <p className="text-sm text-gray-500">Нет расходов за этот период</p>
-        ) : (
-          <>
-            <div className="space-y-2">
-              {visibleExpenses.map((expense) => {
-                const Icon = getExpenseCategoryIcon(expense.category);
-
-                return (
-                  <div
-                    key={expense.id}
-                    className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-3"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white">
-                        <Icon className="h-4 w-4 text-gray-700" />
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900">
-                          {new Date(expense.createdAt).toLocaleDateString(
-                            "ru-RU",
-                          )}
-                        </p>
-                        <p className="truncate text-xs text-gray-500">
-                          {expense.categoryNameSnapshot ??
-                            getExpenseCategoryName(
-                              expense.category,
-                              expenseCategories,
-                            )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span className="ml-3 shrink-0 text-sm font-semibold text-gray-900">
-                      −{formatMoneyWithCurrency(expense.amount, currency)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {group.expenses.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setExpanded((prev) => !prev)}
-                className="mt-3 w-full rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
-              >
-                {expanded
-                  ? "Скрыть операции"
-                  : `Показать операции (${group.expenses.length})`}
-              </button>
-            )}
-          </>
-        )}
+        <div className="mt-4 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={() =>
+              onOpenAnalytics?.({
+                mode: mode === "weeks" ? "week" : "period",
+                title: group.title,
+                rangeStart: group.rangeStart.toISOString(),
+                rangeEndExclusive: group.rangeEndExclusive.toISOString(),
+              })
+            }
+            className="w-full rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          >
+            Аналитика
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -169,6 +135,7 @@ export function HistoryScreen({
   salaryDay,
   trackingStartedAt,
   currency,
+  onOpenAnalytics,
 }: HistoryScreenProps) {
   const [mode, setMode] = useState<HistoryMode>("weeks");
   const swipeHandlers = useSwipeTabs<HistoryMode>({
@@ -188,7 +155,6 @@ export function HistoryScreen({
       buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
     [expenses, monthlyBudget, salaryDay, trackingStartedAt],
   );
-  const expenseCategories = useFinanceStore((state) => state.expenseCategories);
 
   const visibleGroups = mode === "weeks" ? weeklyGroups : monthlyGroups;
 
@@ -228,7 +194,7 @@ export function HistoryScreen({
                 group={group}
                 mode={mode}
                 currency={currency}
-                expenseCategories={expenseCategories}
+                onOpenAnalytics={onOpenAnalytics}
               />
             ))}
           </div>
