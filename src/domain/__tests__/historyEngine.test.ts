@@ -16,6 +16,18 @@ function createExpense(
   };
 }
 
+function expectLocalDate(
+  actual: Date | undefined,
+  year: number,
+  monthIndex: number,
+  day: number,
+) {
+  expect(actual).toBeInstanceOf(Date);
+  expect(actual?.getFullYear()).toBe(year);
+  expect(actual?.getMonth()).toBe(monthIndex);
+  expect(actual?.getDate()).toBe(day);
+}
+
 describe("historyEngine", () => {
   it("builds weekly groups and calculates current week total", () => {
     const expenses: Expense[] = [
@@ -36,6 +48,11 @@ describe("historyEngine", () => {
     expect(groups[0].isCurrent).toBe(true);
     expect(groups[0].total).toBe(70);
     expect(groups[0].expenses.map((expense) => expense.id)).toEqual(["1", "2"]);
+    expect(groups[0].rangeStart).toBeInstanceOf(Date);
+    expect(groups[0].rangeEndExclusive).toBeInstanceOf(Date);
+    expect(groups[0].rangeStart.getTime()).toBeLessThan(
+      groups[0].rangeEndExclusive.getTime(),
+    );
   });
 
   it("builds monthly cycle groups and calculates current period total", () => {
@@ -58,6 +75,11 @@ describe("historyEngine", () => {
     expect(groups[0].total).toBe(70);
     expect(groups[0].limit).toBe(1000);
     expect(groups[0].delta).toBe(930);
+    expect(groups[0].rangeStart).toBeInstanceOf(Date);
+    expect(groups[0].rangeEndExclusive).toBeInstanceOf(Date);
+    expect(groups[0].rangeStart.getTime()).toBeLessThan(
+      groups[0].rangeEndExclusive.getTime(),
+    );
   });
 
   it("includes partial first week when salary period starts in the middle of a calendar week", () => {
@@ -86,6 +108,25 @@ describe("historyEngine", () => {
       "2",
       "1",
     ]);
+    expectLocalDate(partialFirstWeek?.rangeStart, 2026, 3, 10);
+    expectLocalDate(partialFirstWeek?.rangeEndExclusive, 2026, 3, 13);
+  });
+
+  it("adds exact salary period range to monthly groups", () => {
+    const expenses: Expense[] = [
+      createExpense("1", 50, "2026-04-15T09:00:00.000Z"),
+    ];
+
+    const groups = buildMonthlyGroups(
+      expenses,
+      1000,
+      25,
+      "2026-03-25T00:00:00.000Z",
+      new Date("2026-04-15T12:00:00.000Z"),
+    );
+
+    expectLocalDate(groups[0].rangeStart, 2026, 2, 25);
+    expectLocalDate(groups[0].rangeEndExclusive, 2026, 3, 25);
   });
 
   it("returns groups without crashing when there are no expenses", () => {
