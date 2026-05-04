@@ -214,33 +214,49 @@ export function buildPeriodSpendingRhythm(params: {
   const cycleStartTs = startOfDayTs(params.cycleStart);
   const cycleEndTs = startOfDayTs(params.nextSalaryDate);
 
-  const weekRanges: Array<{ start: Date; end: Date; amount: number }> = [];
+  const weekRanges: Array<{
+    start: Date;
+    end: Date;
+    endExclusive: Date;
+    amount: number;
+  }> = [];
+
   const cursor = new Date(cycleStartTs);
 
   while (cursor.getTime() < cycleEndTs) {
     const start = new Date(cursor);
-    const end = new Date(cursor);
-    end.setDate(end.getDate() + 6);
+    const startDayIndex = getMondayBasedDayIndex(start);
 
-    if (end.getTime() >= cycleEndTs) {
-      end.setTime(cycleEndTs - 1);
+    const end = new Date(start);
+    end.setDate(end.getDate() + (6 - startDayIndex));
+
+    const maxEndInclusive = new Date(cycleEndTs);
+    maxEndInclusive.setDate(maxEndInclusive.getDate() - 1);
+
+    if (end.getTime() > maxEndInclusive.getTime()) {
+      end.setTime(maxEndInclusive.getTime());
     }
+
+    const endExclusive = new Date(end);
+    endExclusive.setDate(endExclusive.getDate() + 1);
 
     weekRanges.push({
       start,
       end,
+      endExclusive,
       amount: 0,
     });
 
-    cursor.setDate(cursor.getDate() + 7);
+    cursor.setTime(endExclusive.getTime());
   }
 
   for (const expense of params.expenses) {
     const expenseTs = startOfDayTs(expense.createdAt);
+
     const bucket = weekRanges.find(
       (range) =>
         expenseTs >= startOfDayTs(range.start) &&
-        expenseTs <= startOfDayTs(range.end),
+        expenseTs < range.endExclusive.getTime(),
     );
 
     if (bucket) {

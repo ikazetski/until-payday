@@ -108,7 +108,7 @@ function HistoryPeriodCard({
         </div>
       </div>
       <div className="mt-4 border-t border-gray-200 pt-4">
-        <div className="mt-4 border-t border-border pt-3">
+        <div className="mt-2 pt-1">
           <button
             type="button"
             onClick={() =>
@@ -119,7 +119,7 @@ function HistoryPeriodCard({
                 rangeEndExclusive: group.rangeEndExclusive.toISOString(),
               })
             }
-            className="w-full rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+            className="block w-full appearance-none border-0 bg-transparent px-0 py-2 text-center text-[17px] font-semibold text-foreground shadow-none outline-none ring-0 transition hover:opacity-70"
           >
             Аналитика
           </button>

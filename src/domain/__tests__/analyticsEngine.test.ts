@@ -61,14 +61,15 @@ describe("analyticsEngine", () => {
   });
 
   describe("buildPeriodSpendingRhythm", () => {
-    it("uses compact week labels and keeps exact date ranges in tooltipLabel", () => {
+    it("uses history-like week buckets for period rhythm", () => {
       const result = buildPeriodSpendingRhythm({
         cycleStart: new Date(2026, 3, 10), // 10 Apr 2026
-        nextSalaryDate: new Date(2026, 4, 1), // 1 May 2026, exclusive
+        nextSalaryDate: new Date(2026, 4, 8), // 8 May 2026, exclusive
         expenses: [
           expense("1", 100, "2026-04-10T10:00:00.000Z"),
           expense("2", 50, "2026-04-18T10:00:00.000Z"),
           expense("3", 25, "2026-04-30T10:00:00.000Z"),
+          expense("4", 10, "2026-05-05T10:00:00.000Z"),
         ],
       });
 
@@ -76,23 +77,29 @@ describe("analyticsEngine", () => {
         "Н1",
         "Н2",
         "Н3",
+        "Н4",
+        "Н5",
       ]);
 
       expect(result.items.map((item) => item.tooltipLabel)).toEqual([
-        "10–16",
-        "17–23",
-        "24–30",
+        "10–12",
+        "13–19",
+        "20–26",
+        "27.4–3.5",
+        "4–7",
       ]);
 
-      expect(result.items.map((item) => item.amount)).toEqual([100, 50, 25]);
+      expect(result.items.map((item) => item.amount)).toEqual([
+        100, 50, 0, 25, 10,
+      ]);
 
       expect(result.averageLabel).toBe("в неделю");
-      expect(result.averageAmount).toBe(58.3);
-      expect(result.peakLabel).toBe("10–16");
-      expect(result.peakShare).toBe(57.1);
+      expect(result.averageAmount).toBe(37);
+      expect(result.peakLabel).toBe("10–12");
+      expect(result.peakShare).toBe(54.1);
     });
 
-    it("shows cross-month tooltipLabel for incomplete final week", () => {
+    it("keeps clipped final week when period ends mid-week", () => {
       const result = buildPeriodSpendingRhythm({
         cycleStart: new Date(2026, 3, 20), // 20 Apr 2026
         nextSalaryDate: new Date(2026, 4, 3), // 3 May 2026, exclusive
