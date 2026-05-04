@@ -16,7 +16,10 @@ import { StatusIndicator } from "@/components/StatusIndicator";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { RecentTransactions } from "@/components/RecentTransactions";
 import { BottomNav } from "@/components/BottomNav";
-import { HistoryScreen } from "@/components/HistoryScreen";
+import {
+  HistoryScreen,
+  type SelectedAnalyticsRange,
+} from "@/components/HistoryScreen";
 import { AnalyticsScreen } from "@/components/AnalyticsScreen";
 
 const Index = () => {
@@ -31,6 +34,8 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState<"home" | "analytics" | "history">(
     "home",
   );
+  const [selectedAnalyticsRange, setSelectedAnalyticsRange] =
+    useState<SelectedAnalyticsRange | null>(null);
   const [showWeeklyInfo, setShowWeeklyInfo] = useState(false);
   const [showMonthlyInfo, setShowMonthlyInfo] = useState(false);
   const [activeCard, setActiveCard] = useState<0 | 1>(0);
@@ -120,6 +125,14 @@ const Index = () => {
     store.removeExpense(undoExpense.id);
     setUndoExpense(null);
     clearUndoTimer();
+  };
+
+  const handleTabChange = (tab: "home" | "analytics" | "history") => {
+    if (tab === "analytics") {
+      setSelectedAnalyticsRange(null);
+    }
+
+    setActiveTab(tab);
   };
 
   useEffect(() => {
@@ -313,8 +326,12 @@ const Index = () => {
           salaryDay={store.salaryDay}
           trackingStartedAt={store.trackingStartedAt}
           currency={store.currency}
+          onOpenAnalytics={(range) => {
+            setSelectedAnalyticsRange(range);
+            setActiveTab("analytics");
+          }}
         />
-        <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+        <BottomNav activeTab={activeTab} onChangeTab={handleTabChange} />
       </>
     );
   }
@@ -322,8 +339,16 @@ const Index = () => {
   if (activeTab === "analytics") {
     return (
       <>
-        <AnalyticsScreen />
-        <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+        <AnalyticsScreen
+          selectedRange={selectedAnalyticsRange}
+          onBackToHistory={() => {
+            setActiveTab("history");
+          }}
+          onClearSelectedRange={() => {
+            setSelectedAnalyticsRange(null);
+          }}
+        />
+        <BottomNav activeTab={activeTab} onChangeTab={handleTabChange} />
       </>
     );
   }
@@ -756,7 +781,7 @@ const Index = () => {
         </div>
       )}
 
-      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+      <BottomNav activeTab={activeTab} onChangeTab={handleTabChange} />
     </div>
   );
 };

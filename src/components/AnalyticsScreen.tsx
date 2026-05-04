@@ -15,6 +15,7 @@ import {
   XAxis,
 } from "recharts";
 import { useSwipeTabs } from "@/hooks/useSwipeTabs";
+import type { SelectedAnalyticsRange } from "@/components/HistoryScreen";
 
 import { cn, formatMoneyWithCurrency } from "@/lib/utils";
 import { useFinanceStore } from "@/hooks/useFinanceStore";
@@ -28,6 +29,12 @@ import {
 } from "@/domain/analyticsEngine";
 
 type AnalyticsMode = "week" | "period";
+
+type AnalyticsScreenProps = {
+  selectedRange?: SelectedAnalyticsRange | null;
+  onBackToHistory?: () => void;
+  onClearSelectedRange?: () => void;
+};
 
 function mixHexWithWhite(hex: string, ratio: number) {
   const clean = hex.replace("#", "");
@@ -309,9 +316,15 @@ function DonutChart({
   );
 }
 
-export function AnalyticsScreen() {
+export function AnalyticsScreen({
+  selectedRange = null,
+  onBackToHistory,
+}: AnalyticsScreenProps) {
   const store = useFinanceStore();
   const [mode, setMode] = useState<AnalyticsMode>("week");
+  const isHistoricalMode = Boolean(selectedRange);
+  const effectiveMode: AnalyticsMode = selectedRange?.mode ?? mode;
+
   const swipeHandlers = useSwipeTabs<AnalyticsMode>({
     value: mode,
     values: ["week", "period"],
@@ -342,7 +355,25 @@ export function AnalyticsScreen() {
     });
   }, [store.recentExpenses, store.currentWeekStart, store.currentWeekEnd]);
 
-  const selectedExpenses = mode === "period" ? cycleExpenses : weekExpenses;
+  const historicalExpenses = useMemo(() => {
+    if (!selectedRange) return [];
+
+    const rangeStart = new Date(selectedRange.rangeStart).getTime();
+    const rangeEndExclusive = new Date(
+      selectedRange.rangeEndExclusive,
+    ).getTime();
+
+    return (store.recentExpenses ?? []).filter((expense) => {
+      const expenseTime = new Date(expense.createdAt).getTime();
+      return expenseTime >= rangeStart && expenseTime < rangeEndExclusive;
+    });
+  }, [selectedRange, store.recentExpenses]);
+
+  const selectedExpenses = isHistoricalMode
+    ? historicalExpenses
+    : effectiveMode === "period"
+      ? cycleExpenses
+      : weekExpenses;
 
   const summary = useMemo(() => {
     return buildAnalyticsSummary({
@@ -352,7 +383,7 @@ export function AnalyticsScreen() {
   }, [selectedExpenses, store.expenseCategories]);
 
   const rhythm = useMemo(() => {
-    if (mode === "week") {
+    if (effectiveMode === "week") {
       return buildWeekSpendingRhythm({
         expenses: selectedExpenses,
       });
@@ -360,13 +391,24 @@ export function AnalyticsScreen() {
 
     return buildPeriodSpendingRhythm({
       expenses: selectedExpenses,
-      cycleStart: store.currentCycleStart,
-      nextSalaryDate: store.nextSalaryDate,
+      cycleStart: selectedRange
+        ? new Date(selectedRange.rangeStart)
+        : store.currentCycleStart,
+      nextSalaryDate: selectedRange
+        ? new Date(selectedRange.rangeEndExclusive)
+        : store.nextSalaryDate,
     });
-  }, [mode, selectedExpenses, store.currentCycleStart, store.nextSalaryDate]);
+  }, [
+    effectiveMode,
+    selectedExpenses,
+    selectedRange,
+    store.currentCycleStart,
+    store.nextSalaryDate,
+  ]);
 
-  const periodDelta =
-    mode === "period"
+  const periodDelta = isHistoricalMode
+    ? 0
+    : effectiveMode === "period"
       ? Number(store.savings ?? 0)
       : Number(store.weeklySavings ?? 0);
 
@@ -381,41 +423,69 @@ export function AnalyticsScreen() {
   }, [periodDelta, summary, rhythm]);
 
   const rangeLabel =
-    mode === "period"
+    selectedRange?.title ??
+    (effectiveMode === "period"
       ? `До ${format(store.nextSalaryDate, "d MMMM", { locale: ru })}`
       : `${format(store.currentWeekStart, "d MMM", { locale: ru })} – ${format(
           store.currentWeekEnd,
           "d MMM",
           { locale: ru },
-        )}`;
+        )}`);
+
+  const historicalModeLabel =
+    selectedRange?.mode === "period"
+      ? "Исторический период"
+      : "Историческая неделя";
 
   if (summary.categories.length === 0) {
     return (
       <div className="px-5 pt-10 pb-24 max-w-md mx-auto">
         <header className="mb-6">
+          {isHistoricalMode && (
+            <button
+              type="button"
+              onClick={onBackToHistory}
+              className="mb-4 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+            >
+              ← К Истории
+            </button>
+          )}
+
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Аналитика
           </h1>
           <p className="mt-2 text-base text-muted-foreground">
-            Структура расходов
+            {isHistoricalMode ? rangeLabel : "Структура расходов"}
           </p>
+          {isHistoricalMode && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {historicalModeLabel}
+            </p>
+          )}
         </header>
 
-        <SegmentedTabs
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: "week", label: "Неделя" },
-            { value: "period", label: "Период" },
-          ]}
-        />
+        {!isHistoricalMode && (
+          <SegmentedTabs
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "week", label: "Неделя" },
+              { value: "period", label: "Период" },
+            ]}
+          />
+        )}
 
-        <div {...swipeHandlers}>
+        <div {...(!isHistoricalMode ? swipeHandlers : {})}>
           <div className="finance-card">
-            <p className="text-sm font-medium">Пока недостаточно данных</p>
+            <p className="text-sm font-medium">
+              {isHistoricalMode
+                ? "За этот период расходов нет"
+                : "Пока недостаточно данных"}
+            </p>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-              Добавь несколько расходов, и здесь появится распределение по
-              категориям, ритм трат и персональный совет.
+              {isHistoricalMode
+                ? "В выбранной исторической карточке нет расходов для аналитики."
+                : "Добавь несколько расходов, и здесь появится распределение по категориям, ритм трат и персональный совет."}
             </p>
           </div>
         </div>
@@ -426,24 +496,41 @@ export function AnalyticsScreen() {
   return (
     <div className="px-5 pt-10 pb-24 max-w-md mx-auto">
       <header className="mb-6">
+        {isHistoricalMode && (
+          <button
+            type="button"
+            onClick={onBackToHistory}
+            className="mb-4 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+          >
+            ← К истории
+          </button>
+        )}
+
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Аналитика
         </h1>
         <p className="mt-2 text-base text-muted-foreground">
-          Структура расходов
+          {isHistoricalMode ? rangeLabel : "Структура расходов"}
         </p>
+        {isHistoricalMode && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {historicalModeLabel}
+          </p>
+        )}
       </header>
 
-      <SegmentedTabs
-        value={mode}
-        onChange={setMode}
-        options={[
-          { value: "week", label: "Неделя" },
-          { value: "period", label: "Период" },
-        ]}
-      />
+      {!isHistoricalMode && (
+        <SegmentedTabs
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: "week", label: "Неделя" },
+            { value: "period", label: "Период" },
+          ]}
+        />
+      )}
 
-      <div {...swipeHandlers}>
+      <div {...(!isHistoricalMode ? swipeHandlers : {})}>
         <div className="finance-card">
           <div className="mb-4">
             <p className="text-sm font-medium">Распределение расходов</p>
@@ -451,7 +538,9 @@ export function AnalyticsScreen() {
           </div>
 
           <DonutChart
-            key={`${mode}-${summary.chartCategories.map((item) => item.id).join("-")}`}
+            key={`${effectiveMode}-${rangeLabel}-${summary.chartCategories
+              .map((item) => item.id)
+              .join("-")}`}
             items={summary.chartCategories}
             centerLabel="Всего"
             centerValue={formatMoneyWithCurrency(
@@ -498,19 +587,35 @@ export function AnalyticsScreen() {
           </div>
 
           <div className="finance-card p-3">
-            <p className="text-[11px] text-muted-foreground">
-              {trendPositive ? "Сэкономлено" : "Перерасход"}
-            </p>
-            <p
-              className={cn(
-                "text-base font-bold mt-1 leading-tight",
-                trendPositive ? "text-emerald-600" : "text-red-500",
-              )}
-            >
-              {periodDelta > 0 ? "+" : ""}
-              {periodDelta.toLocaleString("ru-RU")}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-1">от плана</p>
+            {isHistoricalMode ? (
+              <>
+                <p className="text-[11px] text-muted-foreground">Тип</p>
+                <p className="text-base font-bold mt-1 leading-tight">
+                  {selectedRange?.mode === "period" ? "Период" : "Неделя"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  из истории
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] text-muted-foreground">
+                  {trendPositive ? "Сэкономлено" : "Перерасход"}
+                </p>
+                <p
+                  className={cn(
+                    "text-base font-bold mt-1 leading-tight",
+                    trendPositive ? "text-emerald-600" : "text-red-500",
+                  )}
+                >
+                  {periodDelta > 0 ? "+" : ""}
+                  {periodDelta.toLocaleString("ru-RU")}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  от плана
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -660,46 +765,48 @@ export function AnalyticsScreen() {
           </div>
         </div>
 
-        <div
-          className={cn(
-            "mt-4 rounded-[28px] px-5 py-5 border overflow-hidden relative",
-            advice.tone === "positive" &&
-              "bg-[linear-gradient(135deg,rgba(79,70,229,0.08),rgba(99,102,241,0.02))] border-indigo-100",
-            advice.tone === "warning" &&
-              "bg-[linear-gradient(135deg,rgba(251,113,133,0.08),rgba(248,113,113,0.02))] border-rose-100",
-            advice.tone === "neutral" &&
-              "bg-[linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.02))] border-indigo-100",
-          )}
-        >
-          <div className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-white/30 blur-sm" />
+        {!isHistoricalMode && (
+          <div
+            className={cn(
+              "mt-4 rounded-[28px] px-5 py-5 border overflow-hidden relative",
+              advice.tone === "positive" &&
+                "bg-[linear-gradient(135deg,rgba(79,70,229,0.08),rgba(99,102,241,0.02))] border-indigo-100",
+              advice.tone === "warning" &&
+                "bg-[linear-gradient(135deg,rgba(251,113,133,0.08),rgba(248,113,113,0.02))] border-rose-100",
+              advice.tone === "neutral" &&
+                "bg-[linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.02))] border-indigo-100",
+            )}
+          >
+            <div className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-white/30 blur-sm" />
 
-          <div className="relative">
-            <div className="w-12 h-12 rounded-full bg-background shadow-[0_8px_20px_rgba(15,23,42,0.08)] flex items-center justify-center">
-              <Lightbulb
-                className={cn(
-                  "w-5 h-5",
-                  advice.tone === "warning" && "text-rose-600",
-                  advice.tone === "positive" && "text-indigo-600",
-                  advice.tone === "neutral" && "text-indigo-600",
-                )}
-              />
-            </div>
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full bg-background shadow-[0_8px_20px_rgba(15,23,42,0.08)] flex items-center justify-center">
+                <Lightbulb
+                  className={cn(
+                    "w-5 h-5",
+                    advice.tone === "warning" && "text-rose-600",
+                    advice.tone === "positive" && "text-indigo-600",
+                    advice.tone === "neutral" && "text-indigo-600",
+                  )}
+                />
+              </div>
 
-            <div className="mt-4">
-              <p className="text-[1.1rem] font-semibold">{advice.title}</p>
-              <p
-                className={cn(
-                  "text-[1rem] mt-2 leading-relaxed",
-                  advice.tone === "warning" && "text-rose-700/90",
-                  advice.tone === "positive" && "text-indigo-700/90",
-                  advice.tone === "neutral" && "text-indigo-700/90",
-                )}
-              >
-                {advice.description}
-              </p>
+              <div className="mt-4">
+                <p className="text-[1.1rem] font-semibold">{advice.title}</p>
+                <p
+                  className={cn(
+                    "text-[1rem] mt-2 leading-relaxed",
+                    advice.tone === "warning" && "text-rose-700/90",
+                    advice.tone === "positive" && "text-indigo-700/90",
+                    advice.tone === "neutral" && "text-indigo-700/90",
+                  )}
+                >
+                  {advice.description}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
