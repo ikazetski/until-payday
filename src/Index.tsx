@@ -245,12 +245,7 @@ const Index = () => {
       : formatMoney(weekPlanValue);
 
   const monthPlanValue = store.savings;
-  const monthPlanTitle =
-    monthPlanValue < 0
-      ? "Перерасход"
-      : monthPlanValue > 0
-        ? "Сэкономлено"
-        : "По плану";
+  const monthPlanTitle = monthPlanValue === 0 ? "По плану" : "Прогноз";
 
   const monthPlanDisplay =
     monthPlanValue < 0
@@ -761,8 +756,10 @@ const Index = () => {
               </p>
 
               <p>
-                <strong>По периоду</strong> показывает, как вы идёте
-                относительно общего плана до зарплаты:
+                <strong>Прогноз по периоду</strong> показывает, как вы идёте
+                относительно общего плана до зарплаты при текущем темпе
+                расходов. Это не обязательно фактический перерасход прямо
+                сейчас.
               </p>
 
               <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
@@ -770,10 +767,10 @@ const Index = () => {
                   <strong>По плану</strong> — вы идёте по плану.
                 </li>
                 <li>
-                  <strong>Сэкономлено</strong> — потратили меньше.
+                  <strong>Положительный прогноз</strong> — вы идёте с запасом.
                 </li>
                 <li>
-                  <strong>Перерасход</strong> — потратили больше.
+                  <strong>Отрицательный прогноз</strong> — текущий темп расходов выше плана.
                 </li>
               </ul>
             </div>
