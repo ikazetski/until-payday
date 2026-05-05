@@ -13,9 +13,11 @@ import { BottomSheet } from "@/components/BottomSheet";
 import {
   ALWAYS_ACTIVE_CATEGORY_ID,
   MAX_ACTIVE_EXPENSE_CATEGORIES,
+  MAX_TOTAL_EXPENSE_CATEGORIES,
   getActiveExpenseCategories,
   getHiddenExpenseCategories,
   hasReachedActiveCategoryLimit,
+  hasReachedTotalCategoryLimit,
 } from "@/domain/categoryUtils";
 import { useFinanceStore, type CurrencyCode } from "@/hooks/useFinanceStore";
 
@@ -153,6 +155,7 @@ export function SettingsSheet({
   const activeCategories = getActiveExpenseCategories(expenseCategories);
   const hiddenCategories = getHiddenExpenseCategories(expenseCategories);
   const activeLimitReached = hasReachedActiveCategoryLimit(expenseCategories);
+  const totalLimitReached = hasReachedTotalCategoryLimit(expenseCategories);
 
   useEffect(() => {
     if (open) {
@@ -267,6 +270,13 @@ export function SettingsSheet({
       return;
     }
 
+    if (totalLimitReached) {
+      showToast(
+        `Лимит категорий — ${MAX_TOTAL_EXPENSE_CATEGORIES}. Новые категории добавить нельзя.`,
+      );
+      return;
+    }
+
     const wasLimitReached = activeLimitReached;
 
     addExpenseCategory(trimmed);
@@ -307,7 +317,9 @@ export function SettingsSheet({
 
   const handleRestoreCategory = (categoryId: string) => {
     if (activeLimitReached) {
-      showToast("Лимит активных категорий — 10. Сначала скройте ненужную.");
+      showToast(
+        `Лимит активных категорий — ${MAX_ACTIVE_EXPENSE_CATEGORIES}. Сначала скройте ненужную.`,
+      );
       return;
     }
 
@@ -558,8 +570,9 @@ export function SettingsSheet({
               Категории расходов
             </h2>
             <p className="mt-1 text-sm leading-relaxed text-gray-500">
-              Выберите до {MAX_ACTIVE_EXPENSE_CATEGORIES} категорий, которые
-              будут показываться при добавлении расхода.
+              Выберите до {MAX_ACTIVE_EXPENSE_CATEGORIES} активных категорий.
+              Всего можно создать до {MAX_TOTAL_EXPENSE_CATEGORIES} категорий,
+              включая скрытые.
             </p>
           </div>
 
@@ -570,8 +583,9 @@ export function SettingsSheet({
                   <h3 className="text-sm font-semibold text-gray-900">
                     Активные категории
                   </h3>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Показываются в попапе “Своя сумма”.
+                  <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                    Показываются в попапе “Своя сумма”. Категории с расходами в
+                    текущем периоде нельзя скрыть до следующего периода.
                   </p>
                 </div>
 
@@ -584,7 +598,6 @@ export function SettingsSheet({
                 {activeCategories.map((category, index) => {
                   const isAlwaysActive =
                     category.id === ALWAYS_ACTIVE_CATEGORY_ID;
-                  const hasExpenses = hasCurrentPeriodExpenses(category.id);
                   const canRename = !isAlwaysActive;
                   const isEditing = editingCategoryId === category.id;
 
@@ -657,13 +670,6 @@ export function SettingsSheet({
                         </div>
                       </div>
 
-                      {hasExpenses && !isAlwaysActive && (
-                        <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                          В текущем периоде есть расходы. Категорию пока нельзя
-                          скрыть.
-                        </p>
-                      )}
-
                       {isEditing && (
                         <div className="mt-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
                           <p className="mb-2 text-xs font-medium text-zinc-600">
@@ -709,21 +715,37 @@ export function SettingsSheet({
                   <button
                     type="button"
                     onClick={() => {
+                      if (totalLimitReached) {
+                        showToast(
+                          `Лимит категорий — ${MAX_TOTAL_EXPENSE_CATEGORIES}. Новые категории добавить нельзя.`,
+                        );
+                        return;
+                      }
+
                       setIsAddingCategory(true);
                       setEditingCategoryId(null);
                       setEditingCategoryName("");
                     }}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" />
                     Добавить категорию
                   </button>
                 )}
 
-                {activeLimitReached && !isAddingCategory && (
+                {activeLimitReached &&
+                  !isAddingCategory &&
+                  !totalLimitReached && (
+                    <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                      Активный список заполнен. Новые категории будут
+                      добавляться в скрытые.
+                    </p>
+                  )}
+
+                {totalLimitReached && !isAddingCategory && (
                   <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                    Активный список заполнен. Новые категории будут добавляться
-                    в скрытые.
+                    Достигнут общий лимит: {MAX_TOTAL_EXPENSE_CATEGORIES}{" "}
+                    категорий, включая скрытые.
                   </p>
                 )}
 

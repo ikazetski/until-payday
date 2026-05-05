@@ -1,7 +1,8 @@
 import { DEFAULT_EXPENSE_CATEGORIES } from "@/domain/financeDefaults";
 import type { ExpenseCategoryItem } from "@/domain/financeTypes";
 
-export const MAX_ACTIVE_EXPENSE_CATEGORIES = 10;
+export const MAX_ACTIVE_EXPENSE_CATEGORIES = 15;
+export const MAX_TOTAL_EXPENSE_CATEGORIES = 25;
 export const ALWAYS_ACTIVE_CATEGORY_ID = "other";
 
 function normalizeCategoryName(value: string) {
@@ -9,18 +10,22 @@ function normalizeCategoryName(value: string) {
 }
 
 export function normalizeExpenseCategories(
-  categories: ExpenseCategoryItem[] | undefined
+  categories: ExpenseCategoryItem[] | undefined,
 ): ExpenseCategoryItem[] {
-  const source = Array.isArray(categories) && categories.length > 0
-    ? categories
-    : DEFAULT_EXPENSE_CATEGORIES;
+  const source =
+    Array.isArray(categories) && categories.length > 0
+      ? categories
+      : DEFAULT_EXPENSE_CATEGORIES;
 
   const byId = new Map<string, ExpenseCategoryItem>();
 
   for (const category of DEFAULT_EXPENSE_CATEGORIES) {
     byId.set(category.id, {
       ...category,
-      hidden: category.id === ALWAYS_ACTIVE_CATEGORY_ID ? false : category.hidden ?? false,
+      hidden:
+        category.id === ALWAYS_ACTIVE_CATEGORY_ID
+          ? false
+          : (category.hidden ?? false),
       order: category.order ?? byId.size,
     });
   }
@@ -38,18 +43,18 @@ export function normalizeExpenseCategories(
       hidden:
         category.id === ALWAYS_ACTIVE_CATEGORY_ID
           ? false
-          : category.hidden ?? existing?.hidden ?? false,
+          : (category.hidden ?? existing?.hidden ?? false),
       order: category.order ?? existing?.order ?? byId.size,
     });
   }
 
   return Array.from(byId.values()).sort(
-    (a, b) => (a.order ?? 0) - (b.order ?? 0)
+    (a, b) => (a.order ?? 0) - (b.order ?? 0),
   );
 }
 
 export function getActiveExpenseCategories(
-  categories: ExpenseCategoryItem[]
+  categories: ExpenseCategoryItem[],
 ): ExpenseCategoryItem[] {
   return normalizeExpenseCategories(categories)
     .filter((category) => !category.hidden)
@@ -57,7 +62,7 @@ export function getActiveExpenseCategories(
 }
 
 export function getHiddenExpenseCategories(
-  categories: ExpenseCategoryItem[]
+  categories: ExpenseCategoryItem[],
 ): ExpenseCategoryItem[] {
   return normalizeExpenseCategories(categories)
     .filter((category) => category.hidden)
@@ -70,10 +75,16 @@ export function hasReachedActiveCategoryLimit(
   return getActiveExpenseCategories(categories).length >= MAX_ACTIVE_EXPENSE_CATEGORIES;
 }
 
+export function hasReachedTotalCategoryLimit(
+  categories: ExpenseCategoryItem[]
+): boolean {
+  return normalizeExpenseCategories(categories).length >= MAX_TOTAL_EXPENSE_CATEGORIES;
+}
+
 export function hasCategoryName(
   categories: ExpenseCategoryItem[],
   name: string,
-  exceptCategoryId?: string
+  exceptCategoryId?: string,
 ): boolean {
   const normalizedName = normalizeCategoryName(name);
 
