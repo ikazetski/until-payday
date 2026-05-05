@@ -65,7 +65,7 @@ function HistoryPeriodCard({
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
             {group.title}
@@ -76,7 +76,7 @@ function HistoryPeriodCard({
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Расходы</span>
           <span className="font-semibold text-gray-900">
@@ -107,23 +107,21 @@ function HistoryPeriodCard({
           </span>
         </div>
       </div>
-      <div className="mt-4 border-t border-gray-200 pt-4">
-        <div className="mt-2 pt-1">
-          <button
-            type="button"
-            onClick={() =>
-              onOpenAnalytics?.({
-                mode: mode === "weeks" ? "week" : "period",
-                title: group.title,
-                rangeStart: group.rangeStart.toISOString(),
-                rangeEndExclusive: group.rangeEndExclusive.toISOString(),
-              })
-            }
-            className="block w-full appearance-none border-0 bg-transparent px-0 py-2 text-center text-[17px] font-semibold text-foreground shadow-none outline-none ring-0 transition hover:opacity-70"
-          >
-            Аналитика
-          </button>
-        </div>
+      <div className="mt-3 border-t border-gray-100 pt-3">
+        <button
+          type="button"
+          onClick={() =>
+            onOpenAnalytics?.({
+              mode: mode === "weeks" ? "week" : "period",
+              title: group.title,
+              rangeStart: group.rangeStart.toISOString(),
+              rangeEndExclusive: group.rangeEndExclusive.toISOString(),
+            })
+          }
+          className="w-full rounded-2xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800"
+        >
+          Аналитика
+        </button>
       </div>
     </div>
   );
@@ -178,7 +176,7 @@ export function HistoryScreen({
 
       <div {...swipeHandlers}>
         {visibleGroups.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
             <p className="text-sm font-medium text-gray-900">
               История пока пуста
             </p>
@@ -187,7 +185,7 @@ export function HistoryScreen({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {visibleGroups.map((group) => (
               <HistoryPeriodCard
                 key={group.id}
