@@ -51,9 +51,17 @@ export function buildWeeklyGroups(
   salaryDay: number,
   trackingStartedAt: string,
   now = new Date(),
+  configuredNextSalaryDate?: string,
+  configuredCurrentCycleStartDate?: string,
 ): HistoryGroup[] {
   const today = startOfDay(now);
-  const currentCycle = getCycleRange(today, salaryDay, trackingStartedAt);
+  const currentCycle = getCycleRange(
+    today,
+    salaryDay,
+    trackingStartedAt,
+    configuredNextSalaryDate,
+    configuredCurrentCycleStartDate,
+  );
   const currentWeekRange = getCurrentWeekRange(today, currentCycle);
 
   const groups: HistoryGroupWithSort[] = [];
@@ -67,7 +75,15 @@ export function buildWeeklyGroups(
     cycleIndex < WEEKLY_HISTORY_CYCLES_LIMIT;
     cycleIndex += 1
   ) {
-    const cycleRange = getCycleRange(cycleCursor, salaryDay, trackingStartedAt);
+    const isCurrentCycle = cycleIndex === 0;
+
+    const cycleRange = getCycleRange(
+      cycleCursor,
+      salaryDay,
+      trackingStartedAt,
+      isCurrentCycle ? configuredNextSalaryDate : undefined,
+      isCurrentCycle ? configuredCurrentCycleStartDate : undefined,
+    );
     const cycleStart = cycleRange.start;
     const cycleEndInclusive = addDays(cycleRange.endExclusive, -1);
 
@@ -105,6 +121,12 @@ export function buildWeeklyGroups(
             fixedExpenses: [],
             recentExpenses: expenses,
             trackingStartedAt,
+            configuredNextSalaryDate: isCurrentCycle
+              ? configuredNextSalaryDate
+              : undefined,
+            configuredCurrentCycleStartDate: isCurrentCycle
+              ? configuredCurrentCycleStartDate
+              : undefined,
             now: visibleStart,
           });
 
@@ -153,6 +175,8 @@ export function buildMonthlyGroups(
   salaryDay: number,
   trackingStartedAt: string,
   now = new Date(),
+  configuredNextSalaryDate?: string,
+  configuredCurrentCycleStartDate?: string,
 ): HistoryGroup[] {
   const today = startOfDay(now);
   const groups: HistoryGroup[] = [];
@@ -160,7 +184,15 @@ export function buildMonthlyGroups(
   let previousCycleStartTime: number | null = null;
 
   for (let i = 0; i < MONTHLY_HISTORY_PERIODS_LIMIT; i += 1) {
-    const cycleRange = getCycleRange(cursor, salaryDay, trackingStartedAt);
+    const isCurrentCycle = i === 0;
+
+    const cycleRange = getCycleRange(
+      cursor,
+      salaryDay,
+      trackingStartedAt,
+      isCurrentCycle ? configuredNextSalaryDate : undefined,
+      isCurrentCycle ? configuredCurrentCycleStartDate : undefined,
+    );
     const cycleStart = cycleRange.start;
     const cycleEndInclusive = addDays(cycleRange.endExclusive, -1);
 

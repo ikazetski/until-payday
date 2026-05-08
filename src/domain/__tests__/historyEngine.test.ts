@@ -151,4 +151,85 @@ describe("historyEngine", () => {
     expect(weeklyGroups[0].total).toBe(0);
     expect(monthlyGroups[0].total).toBe(0);
   });
+
+  it("builds current incomplete week from configured cycle start to calendar week end", () => {
+    const expenses: Expense[] = [
+      createExpense(
+        "before-period",
+        500,
+        new Date(2026, 4, 7, 10).toISOString(),
+      ),
+      createExpense(
+        "period-start",
+        100,
+        new Date(2026, 4, 8, 10).toISOString(),
+      ),
+      createExpense("inside-week", 50, new Date(2026, 4, 9, 10).toISOString()),
+    ];
+
+    const groups = buildWeeklyGroups(
+      expenses,
+      3200,
+      10,
+      new Date(2026, 4, 5).toISOString(),
+      new Date(2026, 4, 8, 12),
+      new Date(2026, 5, 10).toISOString(),
+      new Date(2026, 4, 8).toISOString(),
+    );
+
+    expect(groups[0].isCurrent).toBe(true);
+    expectLocalDate(groups[0].rangeStart, 2026, 4, 8);
+    expectLocalDate(groups[0].rangeEndExclusive, 2026, 4, 11);
+    expect(groups[0].title).toContain("8 мая");
+    expect(groups[0].title).toContain("10 мая");
+    expect(groups[0].total).toBe(150);
+    expect(groups[0].expenses.map((expense) => expense.id)).toEqual([
+      "inside-week",
+      "period-start",
+    ]);
+  });
+
+  it("builds current period from configured cycle start to configured next salary date", () => {
+    const expenses: Expense[] = [
+      createExpense(
+        "before-period",
+        500,
+        new Date(2026, 4, 7, 10).toISOString(),
+      ),
+      createExpense(
+        "period-start",
+        100,
+        new Date(2026, 4, 8, 10).toISOString(),
+      ),
+      createExpense(
+        "inside-period",
+        50,
+        new Date(2026, 5, 9, 10).toISOString(),
+      ),
+      createExpense(
+        "next-period",
+        999,
+        new Date(2026, 5, 10, 10).toISOString(),
+      ),
+    ];
+
+    const groups = buildMonthlyGroups(
+      expenses,
+      3200,
+      10,
+      new Date(2026, 4, 5).toISOString(),
+      new Date(2026, 4, 8, 12),
+      new Date(2026, 5, 10).toISOString(),
+      new Date(2026, 4, 8).toISOString(),
+    );
+
+    expect(groups[0].isCurrent).toBe(true);
+    expectLocalDate(groups[0].rangeStart, 2026, 4, 8);
+    expectLocalDate(groups[0].rangeEndExclusive, 2026, 5, 10);
+    expect(groups[0].title).toContain("8 мая");
+    expect(groups[0].title).toContain("9 июн");
+    expect(groups[0].total).toBe(150);
+    expect(groups[0].limit).toBe(3200);
+    expect(groups[0].delta).toBe(3050);
+  });
 });

@@ -43,6 +43,8 @@ type SettingsSnapshot = {
   salaryDay: number;
   currency: CurrencyCode;
   trackingStartedAt: string;
+  configuredCurrentCycleStartDate?: string;
+  configuredNextSalaryDate?: string;
 };
 
 type FinanceStore = {
@@ -52,6 +54,8 @@ type FinanceStore = {
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
+  configuredNextSalaryDate?: string;
+  configuredCurrentCycleStartDate?: string;
   expenseCategories: ExpenseCategoryItem[];
 
   isHydrated: boolean;
@@ -64,6 +68,7 @@ type FinanceStore = {
   todayAvailable: number;
   weeklyTodayAvailable: number;
   savings: number;
+  periodForecast: number;
   fixedTotal: number;
   totalSpentCore: number;
   previousSalaryDate: Date;
@@ -97,6 +102,7 @@ type FinanceStore = {
     monthlyBudget: number,
     salaryDay: number,
     currency: CurrencyCode,
+    nextSalaryDate: Date,
   ) => void;
   restoreSettings: (snapshot: SettingsSnapshot) => void;
 
@@ -118,6 +124,8 @@ function selectPersistedData(state: FinanceStore): PersistedData {
     fixedExpenses: state.fixedExpenses,
     recentExpenses: state.recentExpenses,
     trackingStartedAt: state.trackingStartedAt,
+    configuredCurrentCycleStartDate: state.configuredCurrentCycleStartDate,
+    configuredNextSalaryDate: state.configuredNextSalaryDate,
     expenseCategories: state.expenseCategories,
   };
 }
@@ -499,14 +507,17 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     set(persistAndRecalculate(updatedData));
   },
 
-  updateSettings: (monthlyBudget, salaryDay, currency) => {
+  updateSettings: (monthlyBudget, salaryDay, currency, nextSalaryDate) => {
     const current = get();
+    const normalizedNextSalaryDate = startOfDay(nextSalaryDate);
 
     const updatedData: PersistedData = {
       ...selectPersistedData(current),
       monthlyBudget: roundMoney(monthlyBudget),
       salaryDay,
       currency,
+      configuredCurrentCycleStartDate: current.currentCycleStart.toISOString(),
+      configuredNextSalaryDate: normalizedNextSalaryDate.toISOString(),
     };
 
     set(persistAndRecalculate(updatedData));
@@ -521,6 +532,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       salaryDay: snapshot.salaryDay,
       currency: snapshot.currency,
       trackingStartedAt: snapshot.trackingStartedAt,
+      configuredCurrentCycleStartDate: snapshot.configuredCurrentCycleStartDate,
+      configuredNextSalaryDate: snapshot.configuredNextSalaryDate,
     };
 
     set(persistAndRecalculate(restoredData));
@@ -542,7 +555,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
 
     const updatedData: PersistedData = {
       ...selectPersistedData(current),
-      trackingStartedAt: startOfToday().toISOString(),
+      configuredCurrentCycleStartDate: startOfToday().toISOString(),
+      configuredNextSalaryDate: undefined,
     };
 
     set(persistAndRecalculate(updatedData));

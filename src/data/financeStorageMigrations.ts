@@ -12,10 +12,17 @@ import {
 } from "@/domain/financeDefaults";
 import { normalizeExpenseCategories } from "@/domain/categoryUtils";
 import {
+  getMaxDate,
+  getNextSalaryDateFrom,
+  getPreviousSalaryDateFrom,
+  startOfDay,
+} from "@/lib/finance";
+import {
   CURRENT_FINANCE_SCHEMA_VERSION,
   type LegacyFinanceStorageData,
   type PersistedFinanceDataV1,
   type PersistedFinanceDataV2,
+  type PersistedFinanceDataV3,
 } from "@/data/financeStorageTypes";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,23 +64,61 @@ function normalizeTrackingStartedAt(value: unknown): string {
     : new Date().toISOString();
 }
 
+function normalizeConfiguredNextSalaryDate(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function normalizeConfiguredCurrentCycleStartDate(
+  value: unknown,
+): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime())
+    ? undefined
+    : startOfDay(parsed).toISOString();
+}
+
+function inferCurrentCycleStartDate(
+  salaryDay: number,
+  trackingStartedAt: string,
+): string {
+  const previousSalaryDate = getPreviousSalaryDateFrom(new Date(), salaryDay);
+  const trackingStart = startOfDay(new Date(trackingStartedAt));
+
+  if (Number.isNaN(trackingStart.getTime())) {
+    return previousSalaryDate.toISOString();
+  }
+
+  return getMaxDate(previousSalaryDate, trackingStart).toISOString();
+}
+
+function inferNextSalaryDate(salaryDay: number): string {
+  return getNextSalaryDateFrom(new Date(), salaryDay).toISOString();
+}
+
 function normalizeArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
 function normalizeLegacyExpenseCategories(
-  value: unknown
+  value: unknown,
 ): ExpenseCategoryItem[] {
   const categories = normalizeArray<ExpenseCategoryItem>(value);
 
   return normalizeExpenseCategories(
-    categories.length > 0 ? categories : DEFAULT_EXPENSE_CATEGORIES
+    categories.length > 0 ? categories : DEFAULT_EXPENSE_CATEGORIES,
   );
 }
 
 function getCategoryNameById(
   categories: Array<{ id: string; name: string }>,
-  categoryId: string
+  categoryId: string,
 ) {
   return (
     categories.find((category) => category.id === categoryId)?.name ?? "Другое"
@@ -82,7 +127,7 @@ function getCategoryNameById(
 
 function addCategorySnapshotsToExpenses(
   expenses: Expense[],
-  categories: ExpenseCategoryItem[]
+  categories: ExpenseCategoryItem[],
 ): Expense[] {
   return expenses.map((expense) => ({
     ...expense,
@@ -92,9 +137,9 @@ function addCategorySnapshotsToExpenses(
   }));
 }
 
-export function createDefaultPersistedFinanceData(): PersistedFinanceDataV2 {
+export function createDefaultPersistedFinanceData(): PersistedFinanceDataV3 {
   const expenseCategories = normalizeExpenseCategories(
-    DEFAULT_EXPENSE_CATEGORIES
+    DEFAULT_EXPENSE_CATEGORIES,
   );
 
   return {
@@ -106,25 +151,36 @@ export function createDefaultPersistedFinanceData(): PersistedFinanceDataV2 {
       fixedExpenses: [],
       recentExpenses: [],
       trackingStartedAt: new Date().toISOString(),
+      configuredCurrentCycleStartDate: inferCurrentCycleStartDate(
+        DEFAULT_SALARY_DAY,
+        new Date().toISOString(),
+      ),
+      configuredNextSalaryDate: inferNextSalaryDate(DEFAULT_SALARY_DAY),
       expenseCategories,
     },
   };
 }
 
 export function isPersistedFinanceDataV1(
-  value: unknown
+  value: unknown,
 ): value is PersistedFinanceDataV1 {
   return isRecord(value) && value.schemaVersion === 1 && isRecord(value.data);
 }
 
 export function isPersistedFinanceDataV2(
-  value: unknown
+  value: unknown,
 ): value is PersistedFinanceDataV2 {
   return isRecord(value) && value.schemaVersion === 2 && isRecord(value.data);
 }
 
+export function isPersistedFinanceDataV3(
+  value: unknown,
+): value is PersistedFinanceDataV3 {
+  return isRecord(value) && value.schemaVersion === 3 && isRecord(value.data);
+}
+
 export function migrateLegacyFinanceStorage(
-  legacy: LegacyFinanceStorageData
+  legacy: LegacyFinanceStorageData,
 ): PersistedFinanceDataV1 {
   return {
     schemaVersion: 1,
@@ -134,9 +190,20 @@ export function migrateLegacyFinanceStorage(
       currency: normalizeCurrency(legacy.currency),
       fixedExpenses: normalizeArray<FixedExpense>(legacy.fixedExpenses),
       recentExpenses: normalizeArray<Expense>(legacy.recentExpenses),
+      configuredCurrentCycleStartDate:
+        normalizeConfiguredCurrentCycleStartDate(
+          legacy.configuredCurrentCycleStartDate,
+        ) ??
+        inferCurrentCycleStartDate(
+          normalizeSalaryDay(legacy.salaryDay),
+          normalizeTrackingStartedAt(legacy.trackingStartedAt),
+        ),
       trackingStartedAt: normalizeTrackingStartedAt(legacy.trackingStartedAt),
+      configuredNextSalaryDate: normalizeConfiguredNextSalaryDate(
+        legacy.configuredNextSalaryDate,
+      ),
       expenseCategories: normalizeLegacyExpenseCategories(
-        legacy.expenseCategories
+        legacy.expenseCategories,
       ),
     },
   };
@@ -144,7 +211,7 @@ export function migrateLegacyFinanceStorage(
 
 function migrateV1ToV2(data: PersistedFinanceDataV1): PersistedFinanceDataV2 {
   const expenseCategories = normalizeExpenseCategories(
-    data.data.expenseCategories
+    data.data.expenseCategories,
   );
 
   return {
@@ -154,27 +221,58 @@ function migrateV1ToV2(data: PersistedFinanceDataV1): PersistedFinanceDataV2 {
       expenseCategories,
       recentExpenses: addCategorySnapshotsToExpenses(
         data.data.recentExpenses,
-        expenseCategories
+        expenseCategories,
       ),
     },
   };
 }
 
-function normalizePersistedV2Data(
-  data: PersistedFinanceDataV2
-): PersistedFinanceDataV2 {
+function migrateV2ToV3(data: PersistedFinanceDataV2): PersistedFinanceDataV3 {
+  return {
+    schemaVersion: 3,
+    data: {
+      ...data.data,
+      configuredCurrentCycleStartDate:
+        normalizeConfiguredCurrentCycleStartDate(
+          data.data.configuredCurrentCycleStartDate,
+        ) ??
+        inferCurrentCycleStartDate(
+          data.data.salaryDay,
+          data.data.trackingStartedAt,
+        ),
+      configuredNextSalaryDate:
+        normalizeConfiguredNextSalaryDate(data.data.configuredNextSalaryDate) ??
+        inferNextSalaryDate(data.data.salaryDay),
+    },
+  };
+}
+
+function normalizePersistedV3Data(
+  data: PersistedFinanceDataV3,
+): PersistedFinanceDataV3 {
   const expenseCategories = normalizeExpenseCategories(
-    data.data.expenseCategories
+    data.data.expenseCategories,
   );
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     data: {
       ...data.data,
+      configuredCurrentCycleStartDate:
+        normalizeConfiguredCurrentCycleStartDate(
+          data.data.configuredCurrentCycleStartDate,
+        ) ??
+        inferCurrentCycleStartDate(
+          data.data.salaryDay,
+          data.data.trackingStartedAt,
+        ),
+      configuredNextSalaryDate:
+        normalizeConfiguredNextSalaryDate(data.data.configuredNextSalaryDate) ??
+        inferNextSalaryDate(data.data.salaryDay),
       expenseCategories,
       recentExpenses: addCategorySnapshotsToExpenses(
         data.data.recentExpenses,
-        expenseCategories
+        expenseCategories,
       ),
     },
   };
@@ -188,15 +286,13 @@ function migrateToV1(value: unknown): PersistedFinanceDataV1 {
         monthlyBudget: normalizeMonthlyBudget(value.data.monthlyBudget),
         salaryDay: normalizeSalaryDay(value.data.salaryDay),
         currency: normalizeCurrency(value.data.currency),
-        fixedExpenses: normalizeArray<FixedExpense>(
-          value.data.fixedExpenses
-        ),
+        fixedExpenses: normalizeArray<FixedExpense>(value.data.fixedExpenses),
         recentExpenses: normalizeArray<Expense>(value.data.recentExpenses),
         trackingStartedAt: normalizeTrackingStartedAt(
-          value.data.trackingStartedAt
+          value.data.trackingStartedAt,
         ),
         expenseCategories: normalizeLegacyExpenseCategories(
-          value.data.expenseCategories
+          value.data.expenseCategories,
         ),
       },
     };
@@ -214,12 +310,17 @@ function migrateToV1(value: unknown): PersistedFinanceDataV1 {
   };
 }
 
-export function migrateFinanceStorage(value: unknown): PersistedFinanceDataV2 {
+export function migrateFinanceStorage(value: unknown): PersistedFinanceDataV3 {
+  if (isPersistedFinanceDataV3(value)) {
+    return normalizePersistedV3Data(value);
+  }
+
   if (isPersistedFinanceDataV2(value)) {
-    return normalizePersistedV2Data(value);
+    return migrateV2ToV3(value);
   }
 
   const v1 = migrateToV1(value);
+  const v2 = migrateV1ToV2(v1);
 
-  return migrateV1ToV2(v1);
+  return migrateV2ToV3(v2);
 }

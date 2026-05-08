@@ -122,5 +122,35 @@ describe("analyticsEngine", () => {
       expect(result.peakLabel).toBe("27.4–2.5");
       expect(result.peakShare).toBe(100);
     });
+
+    it("keeps clipped first and final weeks for salary period rhythm", () => {
+      const result = buildPeriodSpendingRhythm({
+        cycleStart: new Date(2026, 4, 8), // 8 May 2026
+        nextSalaryDate: new Date(2026, 5, 10), // 10 Jun 2026, exclusive
+        expenses: [
+          expense("before-period", 999, new Date(2026, 4, 7, 10).toISOString()),
+          expense("first-partial", 100, new Date(2026, 4, 8, 10).toISOString()),
+          expense("middle", 50, new Date(2026, 4, 18, 10).toISOString()),
+          expense("final-partial", 25, new Date(2026, 5, 9, 10).toISOString()),
+          expense("next-period", 999, new Date(2026, 5, 10, 10).toISOString()),
+        ],
+      });
+
+      expect(result.items.map((item) => item.tooltipLabel)).toEqual([
+        "8–10",
+        "11–17",
+        "18–24",
+        "25–31",
+        "1–7",
+        "8–9",
+      ]);
+
+      expect(result.items.map((item) => item.amount)).toEqual([
+        100, 0, 50, 0, 0, 25,
+      ]);
+
+      expect(result.averageLabel).toBe("в неделю");
+      expect(result.peakLabel).toBe("8–10");
+    });
   });
 });

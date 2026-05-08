@@ -12,6 +12,8 @@ export type PersistedFinanceState = {
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
+  configuredNextSalaryDate?: string;
+  configuredCurrentCycleStartDate?: string;
   expenseCategories: ExpenseCategoryItem[];
 };
 

@@ -19,6 +19,8 @@ export function createFallbackFinanceState(): PersistedFinanceState {
     fixedExpenses: [],
     recentExpenses: [],
     trackingStartedAt: startOfToday().toISOString(),
+    configuredCurrentCycleStartDate: startOfToday().toISOString(),
+    configuredNextSalaryDate: undefined,
     expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
   };
 }

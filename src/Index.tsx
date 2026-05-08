@@ -49,6 +49,8 @@ const Index = () => {
     salaryDay: number;
     currency: typeof store.currency;
     trackingStartedAt: string;
+    configuredCurrentCycleStartDate?: string;
+    configuredNextSalaryDate?: string;
   } | null>(null);
 
   const undoTimerRef = useRef<number | null>(null);
@@ -92,15 +94,18 @@ const Index = () => {
     monthlyBudget: number,
     salaryDay: number,
     currency: typeof store.currency,
+    nextSalaryDate: Date,
   ) => {
     const snapshot = {
       monthlyBudget: store.monthlyBudget,
       salaryDay: store.salaryDay,
       currency: store.currency,
       trackingStartedAt: store.trackingStartedAt,
+      configuredCurrentCycleStartDate: store.configuredCurrentCycleStartDate,
+      configuredNextSalaryDate: store.configuredNextSalaryDate,
     };
 
-    store.updateSettings(monthlyBudget, salaryDay, currency);
+    store.updateSettings(monthlyBudget, salaryDay, currency, nextSalaryDate);
     setSettingsUndo(snapshot);
 
     clearSettingsUndoTimer();
@@ -244,7 +249,7 @@ const Index = () => {
       ? `-${formatMoney(Math.abs(weekPlanValue))}`
       : formatMoney(weekPlanValue);
 
-  const monthPlanValue = store.savings;
+  const monthPlanValue = store.periodForecast;
   const monthPlanTitle = monthPlanValue === 0 ? "По плану" : "Прогноз";
 
   const monthPlanDisplay =
@@ -320,6 +325,10 @@ const Index = () => {
           monthlyBudget={store.monthlyBudget}
           salaryDay={store.salaryDay}
           trackingStartedAt={store.trackingStartedAt}
+          configuredCurrentCycleStartDate={
+            store.configuredCurrentCycleStartDate
+          }
+          configuredNextSalaryDate={store.configuredNextSalaryDate}
           currency={store.currency}
           onOpenAnalytics={(range) => {
             setSelectedAnalyticsRange(range);
@@ -624,6 +633,7 @@ const Index = () => {
         monthlyBudget={store.monthlyBudget}
         salaryDay={store.salaryDay}
         currency={store.currency}
+        nextSalaryDate={store.nextSalaryDate}
         onUpdateSettings={handleSettingsSave}
       />
 
@@ -770,7 +780,8 @@ const Index = () => {
                   <strong>Положительный прогноз</strong> — вы идёте с запасом.
                 </li>
                 <li>
-                  <strong>Отрицательный прогноз</strong> — текущий темп расходов выше плана.
+                  <strong>Отрицательный прогноз</strong> — текущий темп расходов
+                  выше плана.
                 </li>
               </ul>
             </div>

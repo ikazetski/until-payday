@@ -17,6 +17,8 @@ type HistoryScreenProps = {
   monthlyBudget: number;
   salaryDay: number;
   trackingStartedAt: string;
+  configuredCurrentCycleStartDate?: string;
+  configuredNextSalaryDate?: string;
   currency: CurrencyCode;
   onOpenAnalytics?: (range: SelectedAnalyticsRange) => void;
 };
@@ -132,6 +134,8 @@ export function HistoryScreen({
   monthlyBudget,
   salaryDay,
   trackingStartedAt,
+  configuredCurrentCycleStartDate,
+  configuredNextSalaryDate,
   currency,
   onOpenAnalytics,
 }: HistoryScreenProps) {
@@ -144,14 +148,44 @@ export function HistoryScreen({
 
   const weeklyGroups = useMemo(
     () =>
-      buildWeeklyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
-    [expenses, monthlyBudget, salaryDay, trackingStartedAt],
+      buildWeeklyGroups(
+        expenses,
+        monthlyBudget,
+        salaryDay,
+        trackingStartedAt,
+        new Date(),
+        configuredNextSalaryDate,
+        configuredCurrentCycleStartDate,
+      ),
+    [
+      expenses,
+      monthlyBudget,
+      salaryDay,
+      trackingStartedAt,
+      configuredNextSalaryDate,
+      configuredCurrentCycleStartDate,
+    ],
   );
 
   const monthlyGroups = useMemo(
     () =>
-      buildMonthlyGroups(expenses, monthlyBudget, salaryDay, trackingStartedAt),
-    [expenses, monthlyBudget, salaryDay, trackingStartedAt],
+      buildMonthlyGroups(
+        expenses,
+        monthlyBudget,
+        salaryDay,
+        trackingStartedAt,
+        new Date(),
+        configuredNextSalaryDate,
+        configuredCurrentCycleStartDate,
+      ),
+    [
+      expenses,
+      monthlyBudget,
+      salaryDay,
+      trackingStartedAt,
+      configuredNextSalaryDate,
+      configuredCurrentCycleStartDate,
+    ],
   );
 
   const visibleGroups = mode === "weeks" ? weeklyGroups : monthlyGroups;

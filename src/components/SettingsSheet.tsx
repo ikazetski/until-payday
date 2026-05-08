@@ -27,10 +27,12 @@ type SettingsSheetProps = {
   monthlyBudget: number;
   salaryDay: number;
   currency: CurrencyCode;
+  nextSalaryDate: Date;
   onUpdateSettings: (
     monthlyBudget: number,
     salaryDay: number,
     currency: CurrencyCode,
+    nextSalaryDate: Date,
   ) => void;
 };
 
@@ -39,6 +41,10 @@ type SettingsView = "menu" | "budget" | "categories";
 function startOfToday() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function getSafeDay(year: number, month: number, day: number) {
@@ -78,30 +84,41 @@ function getMonthOptions() {
   ] as const;
 }
 
-function getInitialMonthOffsetAndDay(salaryDay: number) {
+function getInitialMonthOffsetAndDay(nextSalaryDate: Date, salaryDay: number) {
   const today = startOfToday();
+  const normalizedNextSalaryDate = startOfDay(nextSalaryDate);
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+  const nextMonth = new Date(currentYear, currentMonth + 1, 1);
+
+  if (
+    normalizedNextSalaryDate.getFullYear() === currentYear &&
+    normalizedNextSalaryDate.getMonth() === currentMonth &&
+    normalizedNextSalaryDate >= today
+  ) {
+    return { monthOffset: 0, day: normalizedNextSalaryDate.getDate() };
+  }
+
+  if (
+    normalizedNextSalaryDate.getFullYear() === nextMonth.getFullYear() &&
+    normalizedNextSalaryDate.getMonth() === nextMonth.getMonth()
+  ) {
+    return { monthOffset: 1, day: normalizedNextSalaryDate.getDate() };
+  }
+
   const currentCandidate = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    getSafeDay(today.getFullYear(), today.getMonth(), salaryDay),
+    currentYear,
+    currentMonth,
+    getSafeDay(currentYear, currentMonth, salaryDay),
   );
 
   if (currentCandidate >= today) {
-    return {
-      monthOffset: 0,
-      day: currentCandidate.getDate(),
-    };
+    return { monthOffset: 0, day: currentCandidate.getDate() };
   }
-
-  const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
   return {
     monthOffset: 1,
-    day: getSafeDay(
-      nextMonthDate.getFullYear(),
-      nextMonthDate.getMonth(),
-      salaryDay,
-    ),
+    day: getSafeDay(nextMonth.getFullYear(), nextMonth.getMonth(), salaryDay),
   };
 }
 
@@ -111,6 +128,7 @@ export function SettingsSheet({
   monthlyBudget,
   salaryDay,
   currency,
+  nextSalaryDate,
   onUpdateSettings,
 }: SettingsSheetProps) {
   const [budgetValue, setBudgetValue] = useState(String(monthlyBudget));
@@ -131,7 +149,6 @@ export function SettingsSheet({
   const expenseCategories = useFinanceStore((state) => state.expenseCategories);
   const recentExpenses = useFinanceStore((state) => state.recentExpenses);
   const currentCycleStart = useFinanceStore((state) => state.currentCycleStart);
-  const nextSalaryDate = useFinanceStore((state) => state.nextSalaryDate);
 
   const addExpenseCategory = useFinanceStore(
     (state) => state.addExpenseCategory,
@@ -159,15 +176,14 @@ export function SettingsSheet({
 
   useEffect(() => {
     if (open) {
-      const initial = getInitialMonthOffsetAndDay(salaryDay);
+      const initial = getInitialMonthOffsetAndDay(nextSalaryDate, salaryDay);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setBudgetValue(String(monthlyBudget));
       setSelectedMonthOffset(initial.monthOffset as 0 | 1);
       setSelectedDay(initial.day);
       setCurrencyValue(currency);
-      setView("menu");
     }
-  }, [open, monthlyBudget, salaryDay, currency]);
+  }, [open, monthlyBudget, salaryDay, currency, nextSalaryDate]);
 
   const selectedMonthMeta = monthOptions[selectedMonthOffset];
   const daysInSelectedMonth = new Date(
@@ -346,7 +362,7 @@ export function SettingsSheet({
 
     if (selectedDate < today) return;
 
-    onUpdateSettings(parsedBudget, selectedDay, currencyValue);
+    onUpdateSettings(parsedBudget, selectedDay, currencyValue, selectedDate);
     onClose();
   };
 

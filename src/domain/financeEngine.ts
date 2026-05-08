@@ -1,4 +1,8 @@
-import type { Expense, FixedExpense, CurrencyCode } from "@/domain/financeTypes";
+import type {
+  Expense,
+  FixedExpense,
+  CurrencyCode,
+} from "@/domain/financeTypes";
 import {
   addDays,
   countInclusiveDays,
@@ -19,6 +23,8 @@ export type FinanceInput = {
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
+  configuredNextSalaryDate?: string;
+  configuredCurrentCycleStartDate?: string;
   now?: Date;
 };
 
@@ -62,6 +68,7 @@ export type DerivedFinance = {
   todayAvailable: number;
   weeklyTodayAvailable: number;
   savings: number;
+  periodForecast: number;
   fixedTotal: number;
   totalSpentCore: number;
   previousSalaryDate: Date;
@@ -79,7 +86,7 @@ export type DerivedFinance = {
 
 function toDayKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate()
+    date.getDate(),
   ).padStart(2, "0")}`;
 }
 
@@ -104,7 +111,7 @@ function buildCycleDaySnapshots(
   cycleRange: DateRange,
   expenses: Expense[],
   monthlyBudget: number,
-  now: Date
+  now: Date,
 ): DaySnapshot[] {
   const today = startOfDay(now);
   const expensesByDay = buildExpensesByDay(expenses);
@@ -120,11 +127,11 @@ function buildCycleDaySnapshots(
 
     const daysRemainingInCycle = Math.max(
       1,
-      countInclusiveDays(cursor, addDays(cycleRange.endExclusive, -1))
+      countInclusiveDays(cursor, addDays(cycleRange.endExclusive, -1)),
     );
 
     const plannedForDay = roundMoney(
-      Math.max(0, budgetAtStartOfDay / daysRemainingInCycle)
+      Math.max(0, budgetAtStartOfDay / daysRemainingInCycle),
     );
 
     const availableForDay = roundMoney(Math.max(0, plannedForDay - spent));
@@ -161,14 +168,14 @@ function sumSavings(days: DaySnapshot[]) {
     days.reduce((sum, day) => {
       if (day.isPast) return sum + day.deviation;
       return sum + Math.min(0, day.deviation);
-    }, 0)
+    }, 0),
   );
 }
 
 function buildPeriodMetrics(
   cycleRange: DateRange,
   cycleDays: DaySnapshot[],
-  monthlyBudget: number
+  monthlyBudget: number,
 ): PeriodMetrics {
   const totalSpent = sumSpent(cycleDays);
   const budget = roundMoney(monthlyBudget);
@@ -186,9 +193,28 @@ function buildPeriodMetrics(
   };
 }
 
+function buildPeriodForecast(
+  cycleDays: DaySnapshot[],
+  remaining: number,
+  now: Date,
+) {
+  const today = startOfDay(now).getTime();
+  const elapsedDays = cycleDays.filter((day) => day.date.getTime() <= today);
+  const forecastWindow = elapsedDays.slice(-7);
+  const spentInWindow = sumSpent(forecastWindow);
+  const averageDailySpend =
+    forecastWindow.length > 0 ? spentInWindow / forecastWindow.length : 0;
+  const remainingFutureDays = Math.max(
+    0,
+    cycleDays.filter((day) => day.date.getTime() > today).length,
+  );
+
+  return roundMoney(remaining - averageDailySpend * remainingFutureDays);
+}
+
 function buildWeekMetrics(
   weekRange: DateRange | null,
-  cycleDays: DaySnapshot[]
+  cycleDays: DaySnapshot[],
 ): WeekMetrics {
   if (!weekRange) {
     return {
@@ -207,7 +233,7 @@ function buildWeekMetrics(
   const weekEnd = weekRange.endExclusive.getTime();
 
   const weekDays = cycleDays.filter(
-    (day) => day.date.getTime() >= weekStart && day.date.getTime() < weekEnd
+    (day) => day.date.getTime() >= weekStart && day.date.getTime() < weekEnd,
   );
 
   const spent = sumSpent(weekDays);
@@ -218,7 +244,7 @@ function buildWeekMetrics(
 
   const rawTodayAvailable = today?.availableForDay ?? 0;
   const cappedTodayAvailable = roundMoney(
-    Math.min(rawTodayAvailable, Math.max(0, remaining))
+    Math.min(rawTodayAvailable, Math.max(0, remaining)),
   );
 
   return {
@@ -236,7 +262,13 @@ function buildWeekMetrics(
 export function calculateFinance(input: FinanceInput): DerivedFinance {
   const today = startOfDay(input.now ?? new Date());
 
-  const cycleRange = getCycleRange(today, input.salaryDay, input.trackingStartedAt);
+  const cycleRange = getCycleRange(
+    today,
+    input.salaryDay,
+    input.trackingStartedAt,
+    input.configuredNextSalaryDate,
+    input.configuredCurrentCycleStartDate,
+  );
   const weekRange = getCurrentWeekRange(today, cycleRange);
   const cycleExpenses = filterExpensesByRange(input.recentExpenses, cycleRange);
 
@@ -244,25 +276,26 @@ export function calculateFinance(input: FinanceInput): DerivedFinance {
     cycleRange,
     cycleExpenses,
     input.monthlyBudget,
-    today
+    today,
   );
 
-  const period = buildPeriodMetrics(
-  cycleRange,
-  cycleDays,
-  input.monthlyBudget
-  );
+  const period = buildPeriodMetrics(cycleRange, cycleDays, input.monthlyBudget);
   const week = buildWeekMetrics(weekRange, cycleDays);
+  const periodForecast = buildPeriodForecast(
+    cycleDays,
+    period.remaining,
+    today,
+  );
 
   const todaySnapshot = cycleDays.find((day) => day.isToday);
 
   const fixedTotal = roundMoney(
-    input.fixedExpenses.reduce((sum, item) => sum + item.amount, 0)
+    input.fixedExpenses.reduce((sum, item) => sum + item.amount, 0),
   );
 
   const daysLeft = Math.max(
     1,
-    countInclusiveDays(today, addDays(cycleRange.endExclusive, -1))
+    countInclusiveDays(today, addDays(cycleRange.endExclusive, -1)),
   );
 
   return {
@@ -273,6 +306,7 @@ export function calculateFinance(input: FinanceInput): DerivedFinance {
     todayAvailable: todaySnapshot?.availableForDay ?? 0,
     weeklyTodayAvailable: week.todayAvailable,
     savings: period.savings,
+    periodForecast,
     fixedTotal,
     totalSpentCore: period.totalSpent,
     previousSalaryDate: cycleRange.start,
