@@ -8,7 +8,10 @@ import {
   type FinanceStorageSource,
 } from "@/data/financeStorageBootstrap";
 import { createFallbackFinanceState } from "@/data/financeStateFactory";
-import type { PersistedFinanceState } from "@/data/financeRepository";
+import type {
+  PersistedFinanceState,
+  PeriodBudgetSnapshot,
+} from "@/data/financeRepository";
 
 import type {
   CurrencyCode,
@@ -45,6 +48,7 @@ type SettingsSnapshot = {
   trackingStartedAt: string;
   configuredCurrentCycleStartDate?: string;
   configuredNextSalaryDate?: string;
+  periodBudgetSnapshots: PeriodBudgetSnapshot[];
 };
 
 type FinanceStore = {
@@ -56,6 +60,7 @@ type FinanceStore = {
   trackingStartedAt: string;
   configuredNextSalaryDate?: string;
   configuredCurrentCycleStartDate?: string;
+  periodBudgetSnapshots: PeriodBudgetSnapshot[];
   expenseCategories: ExpenseCategoryItem[];
 
   isHydrated: boolean;
@@ -126,6 +131,7 @@ function selectPersistedData(state: FinanceStore): PersistedData {
     trackingStartedAt: state.trackingStartedAt,
     configuredCurrentCycleStartDate: state.configuredCurrentCycleStartDate,
     configuredNextSalaryDate: state.configuredNextSalaryDate,
+    periodBudgetSnapshots: state.periodBudgetSnapshots,
     expenseCategories: state.expenseCategories,
   };
 }
@@ -156,6 +162,19 @@ function reorderCategories(categories: ExpenseCategoryItem[]) {
     ...category,
     order: index,
   }));
+}
+
+function upsertPeriodBudgetSnapshot(
+  snapshots: PeriodBudgetSnapshot[],
+  snapshot: PeriodBudgetSnapshot,
+): PeriodBudgetSnapshot[] {
+  const key = `${snapshot.cycleStartDate}|${snapshot.nextSalaryDate}`;
+
+  const withoutCurrent = snapshots.filter(
+    (item) => `${item.cycleStartDate}|${item.nextSalaryDate}` !== key,
+  );
+
+  return [...withoutCurrent, snapshot];
 }
 
 function moveCategory(
@@ -511,6 +530,19 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const current = get();
     const normalizedNextSalaryDate = startOfDay(nextSalaryDate);
 
+    const currentPeriodBudgetSnapshot: PeriodBudgetSnapshot = {
+      cycleStartDate: current.currentCycleStart.toISOString(),
+      nextSalaryDate: current.nextSalaryDate.toISOString(),
+      monthlyBudget: current.monthlyBudget,
+      currency: current.currency,
+      createdAt: new Date().toISOString(),
+    };
+
+    const periodBudgetSnapshots = upsertPeriodBudgetSnapshot(
+      current.periodBudgetSnapshots,
+      currentPeriodBudgetSnapshot,
+    );
+
     const updatedData: PersistedData = {
       ...selectPersistedData(current),
       monthlyBudget: roundMoney(monthlyBudget),
@@ -518,6 +550,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       currency,
       configuredCurrentCycleStartDate: current.currentCycleStart.toISOString(),
       configuredNextSalaryDate: normalizedNextSalaryDate.toISOString(),
+      periodBudgetSnapshots,
     };
 
     set(persistAndRecalculate(updatedData));
@@ -534,6 +567,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       trackingStartedAt: snapshot.trackingStartedAt,
       configuredCurrentCycleStartDate: snapshot.configuredCurrentCycleStartDate,
       configuredNextSalaryDate: snapshot.configuredNextSalaryDate,
+      periodBudgetSnapshots: snapshot.periodBudgetSnapshots,
     };
 
     set(persistAndRecalculate(restoredData));
@@ -553,10 +587,24 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   startNewCycle: () => {
     const current = get();
 
+    const currentPeriodBudgetSnapshot: PeriodBudgetSnapshot = {
+      cycleStartDate: current.currentCycleStart.toISOString(),
+      nextSalaryDate: current.nextSalaryDate.toISOString(),
+      monthlyBudget: current.monthlyBudget,
+      currency: current.currency,
+      createdAt: new Date().toISOString(),
+    };
+
+    const periodBudgetSnapshots = upsertPeriodBudgetSnapshot(
+      current.periodBudgetSnapshots,
+      currentPeriodBudgetSnapshot,
+    );
+
     const updatedData: PersistedData = {
       ...selectPersistedData(current),
       configuredCurrentCycleStartDate: startOfToday().toISOString(),
       configuredNextSalaryDate: undefined,
+      periodBudgetSnapshots,
     };
 
     set(persistAndRecalculate(updatedData));

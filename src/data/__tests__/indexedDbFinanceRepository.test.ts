@@ -24,6 +24,9 @@ const testState: PersistedFinanceState = {
     },
   ],
   trackingStartedAt: "2026-04-21T21:00:00.000Z",
+  configuredCurrentCycleStartDate: "2026-04-10T21:00:00.000Z",
+  configuredNextSalaryDate: "2026-05-10T21:00:00.000Z",
+  periodBudgetSnapshots: [],
   expenseCategories: [
     {
       id: "food",
@@ -54,6 +57,7 @@ describe("indexedDbFinanceRepository", () => {
     expect(state.fixedExpenses).toEqual([]);
     expect(state.recentExpenses).toEqual([]);
     expect(state.expenseCategories.length).toBeGreaterThan(0);
+    expect(state.periodBudgetSnapshots).toEqual([]);
   });
 
   it("saves and loads finance state", async () => {
@@ -67,6 +71,15 @@ describe("indexedDbFinanceRepository", () => {
     expect(loaded.fixedExpenses).toEqual(testState.fixedExpenses);
     expect(loaded.recentExpenses).toEqual(testState.recentExpenses);
     expect(loaded.trackingStartedAt).toBe(testState.trackingStartedAt);
+    expect(loaded.configuredCurrentCycleStartDate).toBe(
+      testState.configuredCurrentCycleStartDate,
+    );
+    expect(loaded.configuredNextSalaryDate).toBe(
+      testState.configuredNextSalaryDate,
+    );
+    expect(loaded.periodBudgetSnapshots).toEqual(
+      testState.periodBudgetSnapshots,
+    );
   });
 
   it("detects whether IndexedDB has finance data", async () => {

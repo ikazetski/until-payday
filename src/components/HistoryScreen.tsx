@@ -4,6 +4,7 @@ import type { Expense, CurrencyCode } from "@/hooks/useFinanceStore";
 import { buildMonthlyGroups, buildWeeklyGroups } from "@/domain/historyEngine";
 import { SegmentedTabs } from "@/components/SegmentedTabs";
 import { useSwipeTabs } from "@/hooks/useSwipeTabs";
+import type { PeriodBudgetSnapshot } from "@/data/financeRepository";
 
 export type SelectedAnalyticsRange = {
   mode: "week" | "period";
@@ -19,6 +20,7 @@ type HistoryScreenProps = {
   trackingStartedAt: string;
   configuredCurrentCycleStartDate?: string;
   configuredNextSalaryDate?: string;
+  periodBudgetSnapshots: PeriodBudgetSnapshot[];
   currency: CurrencyCode;
   onOpenAnalytics?: (range: SelectedAnalyticsRange) => void;
 };
@@ -136,6 +138,7 @@ export function HistoryScreen({
   trackingStartedAt,
   configuredCurrentCycleStartDate,
   configuredNextSalaryDate,
+  periodBudgetSnapshots,
   currency,
   onOpenAnalytics,
 }: HistoryScreenProps) {
@@ -177,6 +180,7 @@ export function HistoryScreen({
         new Date(),
         configuredNextSalaryDate,
         configuredCurrentCycleStartDate,
+        periodBudgetSnapshots,
       ),
     [
       expenses,
@@ -185,6 +189,7 @@ export function HistoryScreen({
       trackingStartedAt,
       configuredNextSalaryDate,
       configuredCurrentCycleStartDate,
+      periodBudgetSnapshots,
     ],
   );
 

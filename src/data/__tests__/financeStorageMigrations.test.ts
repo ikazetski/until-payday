@@ -69,6 +69,75 @@ describe("financeStorageMigrations", () => {
     );
   });
 
+  it("preserves period budget snapshots during migration", () => {
+    const migrated = migrateFinanceStorage({
+      schemaVersion: 3,
+      data: {
+        monthlyBudget: 3200,
+        salaryDay: 10,
+        currency: "BYN",
+        fixedExpenses: [],
+        recentExpenses: [],
+        trackingStartedAt: "2026-04-10T00:00:00.000Z",
+        configuredCurrentCycleStartDate: "2026-05-08T00:00:00.000Z",
+        configuredNextSalaryDate: "2026-06-10T00:00:00.000Z",
+        expenseCategories: [],
+        periodBudgetSnapshots: [
+          {
+            cycleStartDate: "2026-04-10T00:00:00.000Z",
+            nextSalaryDate: "2026-05-08T00:00:00.000Z",
+            monthlyBudget: 2700,
+            currency: "BYN",
+            createdAt: "2026-05-08T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.data.periodBudgetSnapshots).toHaveLength(1);
+    expect(migrated.data.periodBudgetSnapshots[0].monthlyBudget).toBe(2700);
+  });
+
+  it("normalizes invalid period budget snapshots during migration", () => {
+    const migrated = migrateFinanceStorage({
+      schemaVersion: 3,
+      data: {
+        monthlyBudget: 3200,
+        salaryDay: 10,
+        currency: "BYN",
+        fixedExpenses: [],
+        recentExpenses: [],
+        trackingStartedAt: "2026-04-10T00:00:00.000Z",
+        configuredCurrentCycleStartDate: "2026-05-08T00:00:00.000Z",
+        configuredNextSalaryDate: "2026-06-10T00:00:00.000Z",
+        expenseCategories: [],
+        periodBudgetSnapshots: [
+          {
+            cycleStartDate: "bad-date",
+            nextSalaryDate: "2026-05-08T00:00:00.000Z",
+            monthlyBudget: 2700,
+            currency: "BYN",
+            createdAt: "2026-05-08T00:00:00.000Z",
+          },
+          {
+            cycleStartDate: "2026-04-10T00:00:00.000Z",
+            nextSalaryDate: "2026-05-08T00:00:00.000Z",
+            monthlyBudget: 2700,
+            currency: "BYN",
+            createdAt: "2026-05-08T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.data.periodBudgetSnapshots).toHaveLength(1);
+    expect(migrated.data.periodBudgetSnapshots[0].cycleStartDate).toBe(
+      "2026-04-10T00:00:00.000Z",
+    );
+  });
+
   it("migrates valid v1 storage to v3", () => {
     const v1 = {
       schemaVersion: 1,

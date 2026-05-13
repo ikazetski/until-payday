@@ -14,6 +14,7 @@ import {
   sumExpenses,
 } from "@/lib/finance";
 import { calculateFinance } from "@/domain/financeEngine";
+import type { PeriodBudgetSnapshot } from "@/data/financeRepository";
 
 export type HistoryGroup = {
   id: string;
@@ -43,6 +44,19 @@ function formatWeekTitle(start: Date, end: Date) {
 
 function isSameRangeStart(a: Date, b: Date) {
   return a.getTime() === b.getTime();
+}
+
+function findPeriodBudgetSnapshot(
+  snapshots: PeriodBudgetSnapshot[],
+  rangeStart: Date,
+  rangeEndExclusive: Date,
+): PeriodBudgetSnapshot | undefined {
+  return snapshots.find(
+    (snapshot) =>
+      new Date(snapshot.cycleStartDate).getTime() === rangeStart.getTime() &&
+      new Date(snapshot.nextSalaryDate).getTime() ===
+        rangeEndExclusive.getTime(),
+  );
 }
 
 export function buildWeeklyGroups(
@@ -177,6 +191,7 @@ export function buildMonthlyGroups(
   now = new Date(),
   configuredNextSalaryDate?: string,
   configuredCurrentCycleStartDate?: string,
+  periodBudgetSnapshots: PeriodBudgetSnapshot[] = [],
 ): HistoryGroup[] {
   const today = startOfDay(now);
   const groups: HistoryGroup[] = [];
@@ -205,6 +220,14 @@ export function buildMonthlyGroups(
 
     const total = sumExpenses(cycleExpenses);
 
+    const budgetSnapshot = findPeriodBudgetSnapshot(
+      periodBudgetSnapshots,
+      cycleRange.start,
+      cycleRange.endExclusive,
+    );
+
+    const groupMonthlyBudget = budgetSnapshot?.monthlyBudget ?? monthlyBudget;
+
     groups.push({
       id: `cycle-${cycleStart.toISOString()}`,
       title: `${format(cycleStart, "d MMM", { locale: ru })} – ${format(
@@ -214,8 +237,8 @@ export function buildMonthlyGroups(
       )}`,
       subtitle: i === 0 ? "Текущий период" : undefined,
       total,
-      limit: roundMoney(monthlyBudget),
-      delta: roundMoney(monthlyBudget - total),
+      limit: roundMoney(groupMonthlyBudget),
+      delta: roundMoney(groupMonthlyBudget - total),
       expenses: cycleExpenses,
       isCurrent: i === 0,
       rangeStart: cycleRange.start,

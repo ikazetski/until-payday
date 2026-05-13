@@ -16,6 +16,7 @@ export type LegacyFinanceStorageData = {
   configuredCurrentCycleStartDate?: unknown;
   configuredNextSalaryDate?: unknown;
   expenseCategories?: unknown;
+  periodBudgetSnapshots?: unknown;
 };
 
 export type PersistedFinanceDataV1 = {

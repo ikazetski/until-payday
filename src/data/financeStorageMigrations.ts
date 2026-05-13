@@ -25,6 +25,8 @@ import {
   type PersistedFinanceDataV3,
 } from "@/data/financeStorageTypes";
 
+import type { PeriodBudgetSnapshot } from "@/data/financeRepository";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -64,6 +66,14 @@ function normalizeTrackingStartedAt(value: unknown): string {
     : new Date().toISOString();
 }
 
+function normalizeIsoDate(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
 function normalizeConfiguredNextSalaryDate(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length === 0) return undefined;
 
@@ -100,6 +110,31 @@ function inferCurrentCycleStartDate(
 
 function inferNextSalaryDate(salaryDay: number): string {
   return getNextSalaryDateFrom(new Date(), salaryDay).toISOString();
+}
+
+function normalizePeriodBudgetSnapshots(
+  value: unknown,
+): PeriodBudgetSnapshot[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!isRecord(item)) return null;
+
+      const cycleStartDate = normalizeIsoDate(item.cycleStartDate);
+      const nextSalaryDate = normalizeIsoDate(item.nextSalaryDate);
+
+      if (!cycleStartDate || !nextSalaryDate) return null;
+
+      return {
+        cycleStartDate,
+        nextSalaryDate,
+        monthlyBudget: normalizeMonthlyBudget(item.monthlyBudget),
+        currency: normalizeCurrency(item.currency),
+        createdAt: normalizeIsoDate(item.createdAt) ?? new Date().toISOString(),
+      };
+    })
+    .filter((item): item is PeriodBudgetSnapshot => item !== null);
 }
 
 function normalizeArray<T>(value: unknown): T[] {
@@ -156,6 +191,7 @@ export function createDefaultPersistedFinanceData(): PersistedFinanceDataV3 {
         new Date().toISOString(),
       ),
       configuredNextSalaryDate: inferNextSalaryDate(DEFAULT_SALARY_DAY),
+      periodBudgetSnapshots: [],
       expenseCategories,
     },
   };
@@ -202,6 +238,9 @@ export function migrateLegacyFinanceStorage(
       configuredNextSalaryDate: normalizeConfiguredNextSalaryDate(
         legacy.configuredNextSalaryDate,
       ),
+      periodBudgetSnapshots: normalizePeriodBudgetSnapshots(
+        legacy.periodBudgetSnapshots,
+      ),
       expenseCategories: normalizeLegacyExpenseCategories(
         legacy.expenseCategories,
       ),
@@ -243,6 +282,9 @@ function migrateV2ToV3(data: PersistedFinanceDataV2): PersistedFinanceDataV3 {
       configuredNextSalaryDate:
         normalizeConfiguredNextSalaryDate(data.data.configuredNextSalaryDate) ??
         inferNextSalaryDate(data.data.salaryDay),
+      periodBudgetSnapshots: normalizePeriodBudgetSnapshots(
+        data.data.periodBudgetSnapshots,
+      ),
     },
   };
 }
@@ -269,6 +311,9 @@ function normalizePersistedV3Data(
       configuredNextSalaryDate:
         normalizeConfiguredNextSalaryDate(data.data.configuredNextSalaryDate) ??
         inferNextSalaryDate(data.data.salaryDay),
+      periodBudgetSnapshots: normalizePeriodBudgetSnapshots(
+        data.data.periodBudgetSnapshots,
+      ),
       expenseCategories,
       recentExpenses: addCategorySnapshotsToExpenses(
         data.data.recentExpenses,
@@ -290,6 +335,20 @@ function migrateToV1(value: unknown): PersistedFinanceDataV1 {
         recentExpenses: normalizeArray<Expense>(value.data.recentExpenses),
         trackingStartedAt: normalizeTrackingStartedAt(
           value.data.trackingStartedAt,
+        ),
+        configuredCurrentCycleStartDate:
+          normalizeConfiguredCurrentCycleStartDate(
+            value.data.configuredCurrentCycleStartDate,
+          ) ??
+          inferCurrentCycleStartDate(
+            normalizeSalaryDay(value.data.salaryDay),
+            normalizeTrackingStartedAt(value.data.trackingStartedAt),
+          ),
+        configuredNextSalaryDate: normalizeConfiguredNextSalaryDate(
+          value.data.configuredNextSalaryDate,
+        ),
+        periodBudgetSnapshots: normalizePeriodBudgetSnapshots(
+          value.data.periodBudgetSnapshots,
         ),
         expenseCategories: normalizeLegacyExpenseCategories(
           value.data.expenseCategories,

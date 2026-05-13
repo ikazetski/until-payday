@@ -5,6 +5,14 @@ import type {
   FixedExpense,
 } from "@/domain/financeTypes";
 
+export type PeriodBudgetSnapshot = {
+  cycleStartDate: string;
+  nextSalaryDate: string;
+  monthlyBudget: number;
+  currency: CurrencyCode;
+  createdAt: string;
+};
+
 export type PersistedFinanceState = {
   monthlyBudget: number;
   salaryDay: number;
@@ -12,9 +20,10 @@ export type PersistedFinanceState = {
   fixedExpenses: FixedExpense[];
   recentExpenses: Expense[];
   trackingStartedAt: string;
-  configuredNextSalaryDate?: string;
   configuredCurrentCycleStartDate?: string;
+  configuredNextSalaryDate?: string;
   expenseCategories: ExpenseCategoryItem[];
+  periodBudgetSnapshots: PeriodBudgetSnapshot[];
 };
 
 export type FinanceRepository = {

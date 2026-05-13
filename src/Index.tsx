@@ -51,6 +51,7 @@ const Index = () => {
     trackingStartedAt: string;
     configuredCurrentCycleStartDate?: string;
     configuredNextSalaryDate?: string;
+    periodBudgetSnapshots: typeof store.periodBudgetSnapshots;
   } | null>(null);
 
   const undoTimerRef = useRef<number | null>(null);
@@ -103,6 +104,7 @@ const Index = () => {
       trackingStartedAt: store.trackingStartedAt,
       configuredCurrentCycleStartDate: store.configuredCurrentCycleStartDate,
       configuredNextSalaryDate: store.configuredNextSalaryDate,
+      periodBudgetSnapshots: store.periodBudgetSnapshots,
     };
 
     store.updateSettings(monthlyBudget, salaryDay, currency, nextSalaryDate);
@@ -237,12 +239,7 @@ const Index = () => {
   };
 
   const weekPlanValue = store.weeklySavings;
-  const weekPlanTitle =
-    weekPlanValue < 0
-      ? "Перерасход"
-      : weekPlanValue > 0
-        ? "Сэкономлено"
-        : "По плану";
+  const weekPlanTitle = "Прогноз";
 
   const weekPlanDisplay =
     weekPlanValue < 0
@@ -329,6 +326,7 @@ const Index = () => {
             store.configuredCurrentCycleStartDate
           }
           configuredNextSalaryDate={store.configuredNextSalaryDate}
+          periodBudgetSnapshots={store.periodBudgetSnapshots}
           currency={store.currency}
           onOpenAnalytics={(range) => {
             setSelectedAnalyticsRange(range);
@@ -714,8 +712,9 @@ const Index = () => {
               </p>
 
               <p>
-                <strong>По неделе</strong> показывает, как вы идёте относительно
-                текущего недельного плана:
+                <strong>Прогноз по неделе</strong> показывает ожидаемый
+                результат недели при текущем темпе расходов. Это не обязательно
+                фактический перерасход прямо сейчас.
               </p>
 
               <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
@@ -723,10 +722,11 @@ const Index = () => {
                   <strong>По плану</strong> — вы идёте по плану.
                 </li>
                 <li>
-                  <strong>Сэкономлено</strong> — потратили меньше.
+                  <strong>Положительный прогноз</strong> — вы идёте с запасом.
                 </li>
                 <li>
-                  <strong>Перерасход</strong> — потратили больше.
+                  <strong>Отрицательный прогноз</strong> — текущий темп расходов
+                  выше плана.
                 </li>
               </ul>
             </div>

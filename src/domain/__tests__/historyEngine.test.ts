@@ -232,4 +232,49 @@ describe("historyEngine", () => {
     expect(groups[0].limit).toBe(3200);
     expect(groups[0].delta).toBe(3050);
   });
+
+  it("uses historical budget snapshot for previous period monthly group", () => {
+    const expenses: Expense[] = [
+      createExpense(
+        "previous-period",
+        4057.81,
+        new Date(2026, 4, 1, 10).toISOString(),
+      ),
+      createExpense(
+        "current-period",
+        162.7,
+        new Date(2026, 4, 11, 10).toISOString(),
+      ),
+    ];
+
+    const groups = buildMonthlyGroups(
+      expenses,
+      3200,
+      10,
+      new Date(2026, 3, 10).toISOString(),
+      new Date(2026, 4, 11, 12),
+      new Date(2026, 5, 10).toISOString(),
+      new Date(2026, 4, 8).toISOString(),
+      [
+        {
+          cycleStartDate: new Date(2026, 3, 10).toISOString(),
+          nextSalaryDate: new Date(2026, 4, 10).toISOString(),
+          monthlyBudget: 2700,
+          currency: "BYN",
+          createdAt: new Date(2026, 4, 8).toISOString(),
+        },
+      ],
+    );
+
+    const currentPeriod = groups[0];
+    const previousPeriod = groups[1];
+
+    expect(currentPeriod.limit).toBe(3200);
+    expect(currentPeriod.total).toBe(162.7);
+    expect(currentPeriod.delta).toBe(3037.3);
+
+    expect(previousPeriod.limit).toBe(2700);
+    expect(previousPeriod.total).toBe(4057.81);
+    expect(previousPeriod.delta).toBeCloseTo(-1357.81);
+  });
 });
