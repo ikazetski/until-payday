@@ -36,6 +36,8 @@ type HistoryGroupWithSort = HistoryGroup & {
 const WEEKLY_HISTORY_CYCLES_LIMIT = 12;
 const MONTHLY_HISTORY_PERIODS_LIMIT = 12;
 
+type FinanceDateRange = ReturnType<typeof getCycleRange>;
+
 function formatWeekTitle(start: Date, end: Date) {
   return `${format(start, "d MMM", { locale: ru })} – ${format(end, "d MMM", {
     locale: ru,
@@ -57,6 +59,17 @@ function findPeriodBudgetSnapshot(
       new Date(snapshot.nextSalaryDate).getTime() ===
         rangeEndExclusive.getTime(),
   );
+}
+
+function getHistoricalCycleRange(
+  endExclusive: Date,
+  salaryDay: number,
+  trackingStartedAt: string,
+): FinanceDateRange {
+  const endInclusive = addDays(endExclusive, -1);
+  const rawRange = getCycleRange(endInclusive, salaryDay, trackingStartedAt);
+
+  return makeRange(rawRange.start, endExclusive);
 }
 
 export function buildWeeklyGroups(
@@ -83,6 +96,7 @@ export function buildWeeklyGroups(
 
   let cycleCursor = today;
   let previousCycleStartTime: number | null = null;
+  let nextHistoricalCycleEndExclusive: Date | null = null;
 
   for (
     let cycleIndex = 0;
@@ -91,13 +105,19 @@ export function buildWeeklyGroups(
   ) {
     const isCurrentCycle = cycleIndex === 0;
 
-    const cycleRange = getCycleRange(
-      cycleCursor,
-      salaryDay,
-      trackingStartedAt,
-      isCurrentCycle ? configuredNextSalaryDate : undefined,
-      isCurrentCycle ? configuredCurrentCycleStartDate : undefined,
-    );
+    const cycleRange: FinanceDateRange = isCurrentCycle
+      ? getCycleRange(
+          cycleCursor,
+          salaryDay,
+          trackingStartedAt,
+          configuredNextSalaryDate,
+          configuredCurrentCycleStartDate,
+        )
+      : getHistoricalCycleRange(
+          nextHistoricalCycleEndExclusive ?? addDays(cycleCursor, 1),
+          salaryDay,
+          trackingStartedAt,
+        );
     const cycleStart = cycleRange.start;
     const cycleEndInclusive = addDays(cycleRange.endExclusive, -1);
 
@@ -171,6 +191,7 @@ export function buildWeeklyGroups(
     }
 
     previousCycleStartTime = cycleStart.getTime();
+    nextHistoricalCycleEndExclusive = cycleStart;
     cycleCursor = addDays(cycleStart, -1);
   }
 
@@ -197,17 +218,24 @@ export function buildMonthlyGroups(
   const groups: HistoryGroup[] = [];
   let cursor = today;
   let previousCycleStartTime: number | null = null;
+  let nextHistoricalCycleEndExclusive: Date | null = null;
 
   for (let i = 0; i < MONTHLY_HISTORY_PERIODS_LIMIT; i += 1) {
     const isCurrentCycle = i === 0;
 
-    const cycleRange = getCycleRange(
-      cursor,
-      salaryDay,
-      trackingStartedAt,
-      isCurrentCycle ? configuredNextSalaryDate : undefined,
-      isCurrentCycle ? configuredCurrentCycleStartDate : undefined,
-    );
+    const cycleRange: FinanceDateRange = isCurrentCycle
+      ? getCycleRange(
+          cursor,
+          salaryDay,
+          trackingStartedAt,
+          configuredNextSalaryDate,
+          configuredCurrentCycleStartDate,
+        )
+      : getHistoricalCycleRange(
+          nextHistoricalCycleEndExclusive ?? addDays(cursor, 1),
+          salaryDay,
+          trackingStartedAt,
+        );
     const cycleStart = cycleRange.start;
     const cycleEndInclusive = addDays(cycleRange.endExclusive, -1);
 
@@ -246,6 +274,7 @@ export function buildMonthlyGroups(
     });
 
     previousCycleStartTime = cycleStart.getTime();
+    nextHistoricalCycleEndExclusive = cycleStart;
     cursor = addDays(cycleStart, -1);
   }
 

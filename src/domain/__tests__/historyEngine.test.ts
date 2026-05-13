@@ -258,7 +258,7 @@ describe("historyEngine", () => {
       [
         {
           cycleStartDate: new Date(2026, 3, 10).toISOString(),
-          nextSalaryDate: new Date(2026, 4, 10).toISOString(),
+          nextSalaryDate: new Date(2026, 4, 8).toISOString(),
           monthlyBudget: 2700,
           currency: "BYN",
           createdAt: new Date(2026, 4, 8).toISOString(),
@@ -276,5 +276,7 @@ describe("historyEngine", () => {
     expect(previousPeriod.limit).toBe(2700);
     expect(previousPeriod.total).toBe(4057.81);
     expect(previousPeriod.delta).toBeCloseTo(-1357.81);
+    expectLocalDate(previousPeriod.rangeStart, 2026, 3, 10);
+    expectLocalDate(previousPeriod.rangeEndExclusive, 2026, 4, 8);
   });
 });

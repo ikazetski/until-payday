@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { roundMoney, startOfDay } from "@/lib/finance";
+import {
+  addDays,
+  getMaxDate,
+  getPreviousSalaryDateFrom,
+  roundMoney,
+  startOfDay,
+} from "@/lib/finance";
 import { calculateFinance } from "@/domain/financeEngine";
 
 import {
@@ -164,17 +170,60 @@ function reorderCategories(categories: ExpenseCategoryItem[]) {
   }));
 }
 
+function getPeriodBudgetSnapshotKey(snapshot: PeriodBudgetSnapshot) {
+  return `${snapshot.cycleStartDate}|${snapshot.nextSalaryDate}`;
+}
+
 function upsertPeriodBudgetSnapshot(
   snapshots: PeriodBudgetSnapshot[],
   snapshot: PeriodBudgetSnapshot,
 ): PeriodBudgetSnapshot[] {
-  const key = `${snapshot.cycleStartDate}|${snapshot.nextSalaryDate}`;
+  const key = getPeriodBudgetSnapshotKey(snapshot);
 
   const withoutCurrent = snapshots.filter(
-    (item) => `${item.cycleStartDate}|${item.nextSalaryDate}` !== key,
+    (item) => getPeriodBudgetSnapshotKey(item) !== key,
   );
 
   return [...withoutCurrent, snapshot];
+}
+
+function addPeriodBudgetSnapshotIfMissing(
+  snapshots: PeriodBudgetSnapshot[],
+  snapshot: PeriodBudgetSnapshot | null,
+): PeriodBudgetSnapshot[] {
+  if (!snapshot) return snapshots;
+
+  const key = getPeriodBudgetSnapshotKey(snapshot);
+  const exists = snapshots.some(
+    (item) => getPeriodBudgetSnapshotKey(item) === key,
+  );
+
+  return exists ? snapshots : [...snapshots, snapshot];
+}
+
+function createPreviousPeriodBudgetSnapshot(
+  current: FinanceStore,
+  salaryDay: number,
+): PeriodBudgetSnapshot | null {
+  const previousPeriodEndExclusive = startOfDay(current.currentCycleStart);
+  const previousPeriodEndInclusive = addDays(previousPeriodEndExclusive, -1);
+
+  const previousPeriodStart = getMaxDate(
+    getPreviousSalaryDateFrom(previousPeriodEndInclusive, salaryDay),
+    startOfDay(new Date(current.trackingStartedAt)),
+  );
+
+  if (previousPeriodStart.getTime() >= previousPeriodEndExclusive.getTime()) {
+    return null;
+  }
+
+  return {
+    cycleStartDate: previousPeriodStart.toISOString(),
+    nextSalaryDate: previousPeriodEndExclusive.toISOString(),
+    monthlyBudget: current.monthlyBudget,
+    currency: current.currency,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 function moveCategory(
@@ -530,17 +579,14 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     const current = get();
     const normalizedNextSalaryDate = startOfDay(nextSalaryDate);
 
-    const currentPeriodBudgetSnapshot: PeriodBudgetSnapshot = {
-      cycleStartDate: current.currentCycleStart.toISOString(),
-      nextSalaryDate: current.nextSalaryDate.toISOString(),
-      monthlyBudget: current.monthlyBudget,
-      currency: current.currency,
-      createdAt: new Date().toISOString(),
-    };
+    const previousPeriodBudgetSnapshot = createPreviousPeriodBudgetSnapshot(
+      current,
+      salaryDay,
+    );
 
-    const periodBudgetSnapshots = upsertPeriodBudgetSnapshot(
+    const periodBudgetSnapshots = addPeriodBudgetSnapshotIfMissing(
       current.periodBudgetSnapshots,
-      currentPeriodBudgetSnapshot,
+      previousPeriodBudgetSnapshot,
     );
 
     const updatedData: PersistedData = {
