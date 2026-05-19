@@ -118,6 +118,22 @@ When building monthly/period groups:
 
 Fallback is required for old users before the snapshot feature existed.
 
+### Clarified period boundary behaviour
+
+If a new salary period starts on a specific date, expenses from that date must belong to the new period.
+
+Example:
+
+- Current period starts: `8 May`
+- Current next salary date: `10 June`
+- Previous period should end before `8 May`
+- Expenses on `8 May` and later belong to the current period
+
+Therefore, a previous history period may be displayed as:
+
+````text
+10 Apr – 7 May
+
 ## 3. Difference Between Period Card Forecast and Analytics Overspend
 
 ### Period card
@@ -126,7 +142,7 @@ The period card `Прогноз` is a forward-looking estimate. It answers:
 
 ```text
 What is the expected result by the end of the salary period if the current/recent spending pace continues?
-```
+````
 
 This can produce a much larger negative value because it extrapolates future spending.
 
@@ -204,7 +220,7 @@ Before production merge:
 3. Open History → Months.
 4. Verify:
    - Current period shows `3200`.
-   - Previous period shows `2700`.
+   - Previous period shows 2700 if a periodBudgetSnapshot exists for that period. If no snapshot exists, fallback to current monthlyBudget is expected.
    - Previous overspend/remaining is calculated from `2700`.
 5. Open weekly card.
 6. Verify middle metric label is `Прогноз` / `по неделе`.

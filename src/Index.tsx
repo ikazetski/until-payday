@@ -22,6 +22,17 @@ import {
 } from "@/components/HistoryScreen";
 import { AnalyticsScreen } from "@/components/AnalyticsScreen";
 
+function scrollPageToTop() {
+  window.scrollTo({
+    top: 0,
+    left: 0,
+    behavior: "auto",
+  });
+
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+
 const Index = () => {
   const store = useFinanceStore();
   const isHydrated = useFinanceStore((state) => state.isHydrated);
@@ -152,6 +163,16 @@ const Index = () => {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const animationFrameId = window.requestAnimationFrame(scrollPageToTop);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [activeTab, isHydrated]);
 
   useEffect(() => {
     if (!isHydrated) return;
