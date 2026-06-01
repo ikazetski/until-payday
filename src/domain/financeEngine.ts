@@ -155,10 +155,6 @@ function buildCycleDaySnapshots(
   return days;
 }
 
-function sumPlanned(days: DaySnapshot[]) {
-  return roundMoney(days.reduce((sum, day) => sum + day.plannedForDay, 0));
-}
-
 function sumSpent(days: DaySnapshot[]) {
   return roundMoney(days.reduce((sum, day) => sum + day.spent, 0));
 }
@@ -215,6 +211,7 @@ function buildPeriodForecast(
 function buildWeekMetrics(
   weekRange: DateRange | null,
   cycleDays: DaySnapshot[],
+  periodRemaining: number,
 ): WeekMetrics {
   if (!weekRange) {
     return {
@@ -237,8 +234,34 @@ function buildWeekMetrics(
   );
 
   const spent = sumSpent(weekDays);
-  const budget = sumPlanned(weekDays);
-  const remaining = roundMoney(budget - spent);
+
+  const todaySnapshot = cycleDays.find((day) => day.isToday);
+  const todayTime = todaySnapshot?.date.getTime() ?? weekRange.start.getTime();
+
+  const periodDaysLeft = Math.max(
+    1,
+    cycleDays.filter((day) => day.date.getTime() >= todayTime).length,
+  );
+
+  const weekDaysLeft = Math.max(
+    1,
+    weekDays.filter((day) => day.date.getTime() >= todayTime).length,
+  );
+
+  const nonNegativePeriodRemaining = Math.max(0, periodRemaining);
+
+  const allocatedWeeklyRemaining =
+    periodRemaining < 0
+      ? periodRemaining
+      : roundMoney(
+          Math.min(
+            nonNegativePeriodRemaining,
+            nonNegativePeriodRemaining * (weekDaysLeft / periodDaysLeft),
+          ),
+        );
+
+  const remaining = allocatedWeeklyRemaining;
+  const budget = roundMoney(spent + remaining);
   const savings = sumSavings(weekDays);
   const today = weekDays.find((day) => day.isToday);
 
@@ -280,7 +303,7 @@ export function calculateFinance(input: FinanceInput): DerivedFinance {
   );
 
   const period = buildPeriodMetrics(cycleRange, cycleDays, input.monthlyBudget);
-  const week = buildWeekMetrics(weekRange, cycleDays);
+  const week = buildWeekMetrics(weekRange, cycleDays, period.remaining);
   const periodForecast = buildPeriodForecast(
     cycleDays,
     period.remaining,

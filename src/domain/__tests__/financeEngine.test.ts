@@ -470,6 +470,66 @@ describe("calculateFinance", () => {
   });
 });
 
+it("does not allow weekly remaining to exceed period remaining near the end of salary cycle", () => {
+  const result = calculateFinance({
+    monthlyBudget: 3200,
+    salaryDay: 10,
+    currency: "BYN",
+    fixedExpenses: [],
+    recentExpenses: [
+      {
+        id: "spent-before-week",
+        amount: 2682.74,
+        category: "other",
+        createdAt: new Date(2026, 4, 31, 10).toISOString(),
+      },
+    ],
+    trackingStartedAt: new Date(2026, 4, 8).toISOString(),
+    configuredCurrentCycleStartDate: new Date(2026, 4, 8).toISOString(),
+    configuredNextSalaryDate: new Date(2026, 5, 10).toISOString(),
+    now: new Date(2026, 5, 1, 12),
+  });
+
+  expect(result.remaining).toBe(517.26);
+  expect(result.weeklySpent).toBe(0);
+  expect(result.weeklyRemaining).toBeLessThanOrEqual(result.remaining);
+  expect(result.weeklyRemaining).toBeCloseTo(402.31, 2);
+  expect(result.weeklyBudget).toBeCloseTo(402.31, 2);
+});
+
+it("keeps weekly budget as spent plus allocated weekly remaining", () => {
+  const result = calculateFinance({
+    monthlyBudget: 3200,
+    salaryDay: 10,
+    currency: "BYN",
+    fixedExpenses: [],
+    recentExpenses: [
+      {
+        id: "spent-before-week",
+        amount: 2682.74,
+        category: "other",
+        createdAt: new Date(2026, 4, 31, 10).toISOString(),
+      },
+      {
+        id: "spent-this-week",
+        amount: 100,
+        category: "other",
+        createdAt: new Date(2026, 5, 1, 10).toISOString(),
+      },
+    ],
+    trackingStartedAt: new Date(2026, 4, 8).toISOString(),
+    configuredCurrentCycleStartDate: new Date(2026, 4, 8).toISOString(),
+    configuredNextSalaryDate: new Date(2026, 5, 10).toISOString(),
+    now: new Date(2026, 5, 1, 12),
+  });
+
+  expect(result.remaining).toBe(417.26);
+  expect(result.weeklySpent).toBe(100);
+  expect(result.weeklyRemaining).toBeLessThanOrEqual(result.remaining);
+  expect(result.weeklyRemaining).toBeCloseTo(324.54, 2);
+  expect(result.weeklyBudget).toBeCloseTo(424.54, 2);
+});
+
 it("bases period forecast on recent spending pace instead of amplifying old overspend", () => {
   const expenses: Expense[] = [
     createExpense("early-1", 1000, new Date(2026, 4, 8, 10).toISOString()),
